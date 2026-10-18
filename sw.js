@@ -1,5 +1,5 @@
 // Service Worker — Turnario VVF Napoli Sommozzatori
-const CACHE = 'turnario-v3';
+const CACHE = 'turnario-v4';
 const BASE = '/turnario-Smzt-D';
 const ASSETS = [
   BASE + '/',
