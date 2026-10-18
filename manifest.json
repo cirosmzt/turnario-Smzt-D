@@ -1,9 +1,25 @@
 {
-  "name": "Turnario D VVF Napoli",
-  "short_name": "Turnario VVF",
-  "start_url": "./index.html",
+  "name": "Turnario D — VVF Napoli Sommozzatori",
+  "short_name": "Turnario D",
+  "description": "Gestione turni VVF Napoli Sommozzatori",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#f4f6f8",
   "theme_color": "#c0111f",
-  "icons": []
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
