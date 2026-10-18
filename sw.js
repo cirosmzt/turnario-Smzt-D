@@ -1,6 +1,13 @@
 // Service Worker — Turnario VVF Napoli Sommozzatori
-const CACHE = 'turnario-v2';
-const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE = 'turnario-v3';
+const BASE = '/turnario-Smzt-D';
+const ASSETS = [
+  BASE + '/',
+  BASE + '/index.html',
+  BASE + '/manifest.json',
+  BASE + '/icon-192.png',
+  BASE + '/icon-512.png'
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -19,7 +26,6 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Lascia passare le richieste Firebase (real-time database)
   if (
     e.request.url.includes('firebaseio') ||
     e.request.url.includes('firebaseapp') ||
