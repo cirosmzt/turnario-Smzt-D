@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Turnario D — VVF Napoli</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c0111f">
+<style>
+:root{color-scheme:light;forced-color-adjust:none;--vvf:#c0111f;--navy:#1a2e4a;--navy2:#243a56;--bg:#f4f6f8;--card:#fff;--brd:#dde2ea;--txt:#1a1a2e;--mu:#637082;--G-bg:#e0f2fe;--G-c:#0369a1;--N-bg:#1e3a8a;--N-c:#e0e7ff;}
+*{box-sizing:border-box;margin:0;padding:0;forced-color-adjust:none}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;}
+.hdr{background:var(--vvf);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.hdr-logo{font-size:1.5rem;}.hdr-info{flex:1;min-width:100px;}
+.hdr-title{font-size:.88rem;font-weight:700;}.hdr-sub{font-size:.66rem;opacity:.82;margin-top:1px;}
+.hdr-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.hdr-btn{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:7px;padding:5px 10px;font-size:.73rem;font-weight:600;cursor:pointer;white-space:nowrap;}
+.hdr-btn:hover{background:rgba(255,255,255,.3);}
+.badge-admin{background:#16a34a;color:#fff;border-radius:6px;padding:3px 9px;font-size:.67rem;font-weight:700;}
+.badge-view{background:rgba(255,255,255,.18);color:#fff;border-radius:6px;padding:3px 9px;font-size:.67rem;font-weight:700;}
+.lock-bar{background:#fef2f2;border-bottom:2px solid #fca5a5;padding:7px 14px;font-size:.75rem;color:#7f1d1d;display:flex;align-items:center;gap:10px;}
+.lock-bar button{background:var(--vvf);color:#fff;border:none;border-radius:6px;padding:4px 11px;font-size:.72rem;font-weight:700;cursor:pointer;}
+.twrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+table{border-collapse:collapse;min-width:100%;font-size:.73rem;}
+.th-nome{background:var(--vvf)!important;color:#fff!important;text-align:left;padding-left:8px;min-width:160px;position:sticky!important;left:0;z-index:4;}
+.th-gg{background:var(--navy);color:#fff;padding:4px 2px;text-align:center;font-size:.64rem;font-weight:600;min-width:30px;}
+.th-tot{background:#0f2236;color:#fff;font-size:.64rem;min-width:34px;text-align:center;}
+tbody tr{border-bottom:1px solid #e8ecf2;}
+tbody tr:hover td:not(.td-nome){background:#f8fafc;}
+tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px solid #eaecf0;}
+.td-nome{background:var(--card)!important;text-align:left!important;padding:3px 7px!important;position:sticky;left:0;z-index:2;border-right:2px solid var(--brd);}
+.p-grade{font-size:.57rem;color:var(--mu);}
+.p-nome{font-weight:600;font-size:.72rem;}
+.cell-btn{width:28px;height:21px;border-radius:4px;border:none;font-size:.63rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
+.cell-edit{cursor:pointer;}.cell-edit:hover{opacity:.78;}
+.cell-ro{cursor:default;background:transparent;}
+.tot-td{font-weight:700;font-size:.74rem;background:#f0f4fa!important;color:var(--navy);}
+.sec{padding:11px 14px;}
+.sec-title{font-size:.77rem;font-weight:700;color:var(--navy);margin-bottom:8px;}
+.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.58);z-index:200;align-items:center;justify-content:center;padding:12px;}
+.mbg.open{display:flex;}
+.modal{background:var(--card);border-radius:14px;padding:16px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.3);}
+.modal h3{font-size:.88rem;font-weight:700;color:var(--navy);margin-bottom:3px;}
+.modal-sub{font-size:.69rem;color:var(--mu);margin-bottom:10px;}
+.inp{width:100%;padding:8px 10px;border:2px solid var(--brd);border-radius:7px;font-size:.83rem;font-family:inherit;margin-bottom:7px;}
+.inp:focus{outline:none;border-color:var(--navy);}
+.mrow{display:flex;gap:7px;margin-top:9px;}
+.mbtn{flex:1;padding:8px;border-radius:9px;border:none;font-size:.78rem;font-weight:700;cursor:pointer;}
+.mbtn-ok{background:var(--navy);color:#fff;}.mbtn-cancel{background:#f0f4f8;color:var(--mu);}
+.err-box{color:#7f1d1d;background:#fee2e2;border-radius:6px;padding:5px 9px;font-size:.71rem;display:none;margin-top:4px;}
+.live-status{font-size:.65rem;padding:3px 8px;border-radius:4px;background:#e0f2fe;color:#0369a1;font-weight:600;}
+</style>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-logo">🚒</div>
+  <div class="hdr-info">
+    <div class="hdr-title">Turnario D — VVF Napoli</div>
+    <div class="hdr-sub">Sincronizzazione in tempo reale</div>
+  </div>
+  <div class="hdr-right">
+    <span id="liveBadge" class="live-status">Connesso Live 🟢</span>
+    <span id="roleBadge" class="badge-view">SOLO LETTURA</span>
+    <button id="authBtn" class="hdr-btn" onclick="toggleAuth()">Login Admin</button>
+  </div>
+</header>
+
+<div id="lockBar" class="lock-bar">
+  <span>🔒 Modalità visualizzazione attiva. Per apportare modifiche inserisci la password admin.</span>
+  <button onclick="openLoginModal()">Accedi</button>
+</div>
+
+<main class="sec">
+  <div class="sec-title">Pannello Turni e Servizi</div>
+  <div class="twrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="th-nome">PERSONALE</th>
+          <th class="th-gg">GIO 1</th>
+          <th class="th-gg">VEN 2</th>
+          <th class="th-gg">SAB 3</th>
+          <th class="th-gg">DOM 4</th>
+          <th class="th-tot">TOT</th>
+        </tr>
+      </thead>
+      <tbody id="turniBody"></tbody>
+    </table>
+  </div>
+</main>
+
+<div id="loginModal" class="mbg">
+  <div class="modal">
+    <h3>Accesso Amministratore</h3>
+    <p class="modal-sub">Inserisci la password per abilitare le modifiche.</p>
+    <input type="password" id="adminPassword" class="inp" placeholder="Password">
+    <div id="loginErr" class="err-box">Password errata.</div>
+    <div class="mrow">
+      <button class="mbtn mbtn-cancel" onclick="closeLoginModal()">Annulla</button>
+      <button class="mbtn mbtn-ok" onclick="checkPassword()">Accedi</button>
+    </div>
+  </div>
+</div>
+
+<div id="editModal" class="mbg">
+  <div class="modal">
+    <h3>Modifica Turno</h3>
+    <p class="modal-sub">Seleziona o scrivi il codice (es. G, N, FERIE).</p>
+    <input type="text" id="editValue" class="inp">
+    <div class="mrow">
+      <button class="mbtn mbtn-cancel" onclick="closeEditModal()">Annulla</button>
+      <button class="mbtn mbtn-ok" onclick="saveCellChange()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = { databaseURL: "https://turnariovvf-default-rtdb.firebaseio.com/" };
+if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+const db = firebase.database();
+
+const ADMIN_PASSWORD_HASH = "admin123";
+let isAdmin = false;
+let currentCellTarget = null;
+let appState = { personale: [{ id: "p1", grado: "CR", nome: "ACCENNATO Ciro", turni: { d1: "G", d2: "N", d3: "REST", d4: "G" } }] };
+
+function initRealtimeSync() {
+  db.ref('turnario').on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data) { appState = data; renderTable(); }
+    else { db.ref('turnario').set(appState); }
+  });
+}
+
+function renderTable() {
+  const tbody = document.getElementById('turniBody');
+  tbody.innerHTML = '';
+  appState.personale.forEach(p => {
+    const tr = document.createElement('tr');
+    let totG = 0;
+    Object.values(p.turni).forEach(v => { if(v==='G'||v==='N') totG++; });
+    tr.innerHTML = `
+      <td class="td-nome"><div class="p-grade">${p.grado}</div><div class="p-nome">${p.nome}</div></td>
+      ${['d1', 'd2', 'd3', 'd4'].map(dayKey => {
+        const val = p.turni[dayKey] || '-';
+        return `<td><button class="cell-btn ${isAdmin ? 'cell-edit' : 'cell-ro'}" onclick="handleCellClick('${p.id}', '${dayKey}', '${val}')">${val}</button></td>`;
+      }).join('')}
+      <td class="tot-td">${totG}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function toggleAuth() { if (isAdmin) { isAdmin = false; updateUIAuth(); } else { openLoginModal(); } }
+function openLoginModal() { document.getElementById('loginModal').classList.add('open'); document.getElementById('adminPassword').value = ''; document.getElementById('loginErr').style.display = 'none'; }
+function closeLoginModal() { document.getElementById('loginModal').classList.remove('open'); }
+function checkPassword() {
+  if (document.getElementById('adminPassword').value === ADMIN_PASSWORD_HASH) { isAdmin = true; closeLoginModal(); updateUIAuth(); }
+  else { document.getElementById('loginErr').style.display = 'block'; }
+}
+function updateUIAuth() {
+  document.getElementById('roleBadge').className = isAdmin ? 'badge-admin' : 'badge-view';
+  document.getElementById('roleBadge').innerText = isAdmin ? 'AMMINISTRATORE' : 'SOLO LETTURA';
+  document.getElementById('authBtn').innerText = isAdmin ? 'Logout Admin' : 'Login Admin';
+  document.getElementById('lockBar').style.display = isAdmin ? 'none' : 'flex';
+  renderTable();
+}
+function handleCellClick(personId, dayKey, currentVal) {
+  if (!isAdmin) return;
+  currentCellTarget = { personId, dayKey };
+  document.getElementById('editValue').value = currentVal;
+  document.getElementById('editModal').classList.add('open');
+}
+function closeEditModal() { document.getElementById('editModal').classList.remove('open'); currentCellTarget = null; }
+function saveCellChange() {
+  if (!currentCellTarget || !isAdmin) return;
+  const newVal = document.getElementById('editValue').value.toUpperCase().trim();
+  db.ref(`turnario/personale`).once('value', snapshot => {
+    const list = snapshot.val();
+    const idx = list.findIndex(p => p.id === currentCellTarget.personId);
+    if (idx !== -1) { db.ref(`turnario/personale/${idx}/turni/${currentCellTarget.dayKey}`).set(newVal); }
+  });
+  closeEditModal();
+}
+window.onload = () => { initRealtimeSync(); updateUIAuth(); };
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "Turnario D VVF Napoli",
+  "short_name": "Turnario VVF",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#c0111f",
+  "icons": []
+}
