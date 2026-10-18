@@ -197,6 +197,7 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
     <button class="hdr-btn no-print" onclick="openPersonale()">&#x1F464; Personale</button>
     <button class="hdr-btn no-print" onclick="openCodici()">&#x1F4CB; Codici</button>
     <button class="hdr-btn no-print" onclick="stampaPDF()">&#x1F5A8; PDF</button>
+    <button class="hdr-btn no-print" id="btnInstall" style="display:none;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5)" onclick="installPWA()">&#x2B07; Installa App</button>
   </div>
 </div>
 <div class="lock-bar no-print" id="lockBar">
@@ -507,6 +508,7 @@ function getCodici(){
 }
 var CODICI=getCodici();
 var CODICI_ASSENZA=["CO","M","Mi","A104"];
+var CODICI_EFF=["P","AF","FT","EO","SP","ES","PR"];
 
 // CICLO TURNI
 var REF=new Date(2026,3,1);
@@ -1148,7 +1150,7 @@ function renderTable(){
       var saltoHint=isSaltoDay?"border:1.5px solid "+(ti.tipo==="G"?"#fbbf24":"#93c5fd")+";":"";
       if(s){
         var info=CODICI[s]||{lbl:s,bg:"#f0f4f8",c:"#374151"};
-        if(s!=="-")tot++;
+        if(s==="P")tot++;
         var nota=getNota(p.id,vY,vM,g);
         var ndot=nota?"<span style=\"position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:#f97316;border-radius:50%;border:1.5px solid #fff;display:block\"></span>":"";
         var ntitle=info.lbl+(nota?" | "+nota.replace(/"/g,"").substring(0,50):"");
@@ -1190,7 +1192,7 @@ function calcMese(pid,y,m){
     if(s&&s!=="-"){
       c[s]=(c[s]||0)+1;
       if(CODICI_ASSENZA.indexOf(s)>=0) c.ass++;
-      else c.tot++;
+      if(CODICI_EFF.indexOf(s)>=0) c.tot++;
     }
   }
   c.pv=(c.P||0)+(c.G||0)+(c.N||0)+(c.SP||0)+(c.AF||0)+(c.I||0);
@@ -1373,12 +1375,32 @@ function showToast(msg,bg){
 })();
 </script>
 <script>
+// Service Worker
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
     navigator.serviceWorker.register('sw.js')
       .then(function(r){ console.log('SW registrato:', r.scope); })
       .catch(function(e){ console.log('SW fallito:', e); });
   });
+}
+// Pulsante Installa App PWA
+var _deferredInstall=null;
+window.addEventListener('beforeinstallprompt',function(e){
+  e.preventDefault();
+  _deferredInstall=e;
+  var btn=document.getElementById('btnInstall');
+  if(btn) btn.style.display='';
+});
+window.addEventListener('appinstalled',function(){
+  _deferredInstall=null;
+  var btn=document.getElementById('btnInstall');
+  if(btn) btn.style.display='none';
+});
+function installPWA(){
+  if(_deferredInstall){
+    _deferredInstall.prompt();
+    _deferredInstall.userChoice.then(function(){_deferredInstall=null;});
+  }
 }
 </script>
 </body>
