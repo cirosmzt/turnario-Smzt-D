@@ -1,37 +1,15 @@
 {
   "name": "Turnario D — VVF Napoli Sommozzatori",
   "short_name": "Turnario D",
-  "description": "Gestione turni VVF Napoli Sommozzatori",
   "start_url": "/turnario-Smzt-D/",
   "scope": "/turnario-Smzt-D/",
   "display": "standalone",
-  "orientation": "portrait-primary",
   "background_color": "#f4f6f8",
   "theme_color": "#c0111f",
   "icons": [
-    {
-      "src": "/turnario-Smzt-D/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/turnario-Smzt-D/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/turnario-Smzt-D/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/turnario-Smzt-D/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    {"src": "/turnario-Smzt-D/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/turnario-Smzt-D/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/turnario-Smzt-D/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+    {"src": "/turnario-Smzt-D/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
   ]
 }
