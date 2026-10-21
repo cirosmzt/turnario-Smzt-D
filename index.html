@@ -54,11 +54,11 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
 .td-nome{background:var(--card)!important;text-align:left!important;padding:3px 7px!important;position:sticky;left:0;z-index:2;border-right:2px solid var(--brd);}
 .p-grade{font-size:.57rem;color:var(--mu);}
 .p-nome{font-weight:600;font-size:.72rem;}
-.p-salto{font-size:.57rem;font-weight:700;background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 4px;display:inline-block;margin-top:1px;}
+.p-salto{font-size:.57rem;font-weight:700;background:#fecaca;color:#b91c1c;border-radius:3px;padding:1px 4px;display:inline-block;margin-top:1px;}
 .cell-btn{width:28px;height:21px;border-radius:4px;border:none;font-size:.63rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
 .cell-edit{cursor:pointer;}.cell-edit:hover{opacity:.78;}
 .cell-add{cursor:pointer;background:transparent;color:#d1d5db;}
-.cell-add-salto{cursor:pointer;background:#fff0f0;color:#f87171;border:1px dashed #f87171;}
+.cell-add-salto{cursor:pointer;background:#fee8e8;color:#b91c1c;border:1px dashed #b91c1c;}
 .cell-ro{cursor:default;background:transparent;color:#e5e7eb;}
 .tot-td{font-weight:700;font-size:.74rem;background:#f0f4fa!important;color:var(--navy);}
 .sec{padding:11px 14px;}
@@ -106,7 +106,7 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
 .pers-info{flex:1;min-width:0;}
 .pers-grade{font-size:.62rem;color:var(--navy);font-weight:600;}
 .pers-name{font-weight:600;font-size:.8rem;color:var(--txt);word-break:break-word;}
-.pers-salto-tag{font-size:.57rem;font-weight:700;background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 4px;display:inline-block;margin-top:1px;}
+.pers-salto-tag{font-size:.57rem;font-weight:700;background:#fecaca;color:#b91c1c;border-radius:3px;padding:1px 4px;display:inline-block;margin-top:1px;}
 .pers-actions{display:flex;gap:4px;flex-shrink:0;}
 .pa-btn{border:none;border-radius:5px;padding:4px 8px;font-size:.68rem;font-weight:700;cursor:pointer;white-space:nowrap;}
 .pa-edit{background:#dbeafe;color:#1e40af;}.pa-del{background:#fee2e2;color:#7f1d1d;}
@@ -495,16 +495,36 @@ var CODICI_EXTRA_DEFAULT={
   "Mi" :{lbl:"Missione",            bg:"#fef3c7",c:"#78350f"},
   "MX" :{lbl:"Misto/Altro",         bg:"#f3f4f6",c:"#374151"},
   "-"  :{lbl:"Non in servizio",     bg:"#e5e7eb",c:"#9ca3af"},
+  // D1-D8 Salto — colore corallo, distinto da tutti gli altri
+  "D1" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
+  "D2" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
+  "D3" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
+  "D4" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
+  "D5" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
+  "D6" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
+  "D7" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
+  "D8" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
 };
 function initCodiciDefault(){
-  if(LS.getItem("vvf_cod_def_ok")==="1")return;
   var cu=getCodiciCu();
-  // aggiunge solo se non già presenti (preserva personalizzazioni dell'utente)
-  Object.entries(CODICI_EXTRA_DEFAULT).forEach(function(entry){
-    if(!cu.hasOwnProperty(entry[0]))cu[entry[0]]=entry[1];
-  });
-  saveCodiciCu(cu);
-  LS.setItem("vvf_cod_def_ok","1");
+  // Prima inizializzazione: aggiunge solo se non già presenti
+  if(LS.getItem("vvf_cod_def_ok")!=="1"){
+    Object.entries(CODICI_EXTRA_DEFAULT).forEach(function(entry){
+      if(!cu.hasOwnProperty(entry[0]))cu[entry[0]]=entry[1];
+    });
+    saveCodiciCu(cu);
+    LS.setItem("vvf_cod_def_ok","1");
+  }
+  // Migrazione v2: imposta D1-D8 con colore salto corretto
+  if(LS.getItem("vvf_cod_def_v2")!=="1"){
+    cu=getCodiciCu();
+    ["D1","D2","D3","D4","D5","D6","D7","D8"].forEach(function(dn){
+      // aggiorna solo se esiste (non null = non eliminato intenzionalmente)
+      if(cu[dn]!==null)cu[dn]=CODICI_EXTRA_DEFAULT[dn];
+    });
+    saveCodiciCu(cu);
+    LS.setItem("vvf_cod_def_v2","1");
+  }
 }
 var PALETTE=[
   {name:"Verde",bg:"#dcfce7",c:"#14532d"},{name:"Giallo",bg:"#fef9c3",c:"#713f12"},
@@ -525,6 +545,7 @@ function getCodici(){
 }
 var CODICI=getCodici();
 var CODICI_ASSENZA=["CO","M","Mi","A104"];
+var CODICI_PRESENZA_EFFETTIVA=["P","AF","FT","EO","SP","ES","PR"];
 
 // CICLO TURNI
 var REF=new Date(2026,3,1);
@@ -1136,7 +1157,7 @@ function renderTable(){
     var admAtt=admin?" data-dcm=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(dn0?dn0.replace(/"/g,"&quot;").substring(0,60):"Aggiungi commento al giorno")+"\"":"";
     h+="<th class=\"th-gg"+admCls+"\" style=\"position:relative;"+hdrBg+"\""+admAtt+">"+g+dotH+"</th>";
   }
-  h+="<th class=\"th-tot\">TOT</th></tr><tr><th class=\"th-dow2 th-dow\">GG</th>";
+  h+="<th class=\"th-tot\" title=\"Giorni con codice P (Presenza)\">P</th></tr><tr><th class=\"th-dow2 th-dow\">GG</th>";
   for(var g=1;g<=dim;g++){
     var dow=new Date(vY,vM,g).getDay();
     var isWEb=(dow===0||dow===6);
@@ -1189,7 +1210,7 @@ function renderTable(){
       var saltoHint=isSaltoDay?"border:1.5px solid "+(ti.tipo==="G"?"#fbbf24":"#93c5fd")+";":"";
       if(s){
         var info=CODICI[s]||{lbl:s,bg:"#f0f4f8",c:"#374151"};
-        if(s!=="-")tot++;
+        if(s==="P")tot++;
         var nota=getNota(p.id,vY,vM,g);
         var ndot=nota?"<span style=\"position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:#f97316;border-radius:50%;border:1.5px solid #fff;display:block\"></span>":"";
         var ntitle=info.lbl+(nota?" | "+nota.replace(/"/g,"").substring(0,50):"");
@@ -1245,7 +1266,7 @@ function calcMese(pid,y,m){
     if(s&&s!=="-"){
       c[s]=(c[s]||0)+1;
       if(CODICI_ASSENZA.indexOf(s)>=0) c.ass++;
-      else c.tot++;
+      else if(CODICI_PRESENZA_EFFETTIVA.indexOf(s)>=0) c.tot++;
     }
   }
   c.pv=(c.P||0)+(c.G||0)+(c.N||0)+(c.SP||0)+(c.AF||0)+(c.I||0);
@@ -1259,7 +1280,7 @@ function renderCnt(){
   pers.forEach(function(p){
     var c=calcMese(p.id,vY,vM);
     h+="<div class=\"cnt-card\"><h4>"+p.grado+" "+p.nome+"</h4>";
-    h+="<div class=\"cnt-row\" style=\"border-bottom:2px solid #1a2e4a;padding-bottom:4px;margin-bottom:3px\"><span style=\"font-weight:700\">Presenze effettive</span><span class=\"cnt-v big\">"+c.tot+"</span></div>";
+    h+="<div class=\"cnt-row\" style=\"border-bottom:2px solid #1a2e4a;padding-bottom:4px;margin-bottom:3px\"><span style=\"font-weight:700\" title=\"Conta: P, AF, FT, EO, SP, ES, PR\">Presenze effettive</span><span class=\"cnt-v big\">"+c.tot+"</span></div>";
     if(c.ass>0) h+="<div class=\"cnt-row\" style=\"color:#9a3412\"><span>Totale assenze</span><span class=\"cnt-v\" style=\"color:#9a3412\">"+c.ass+"</span></div>";
     Object.entries(allCodici).forEach(function(entry){
       var code=entry[0],info=entry[1];
@@ -1415,8 +1436,8 @@ function showToast(msg,bg){
         }
       }
       initialized=true;
-      CODICI=getCodici();
       initCodiciDefault();
+      CODICI=getCodici();
       initDS();
       document.getElementById("fbLoading").style.display="none";
     } else {
