@@ -295,6 +295,16 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
   </div>
 </div></div>
 
+<!-- MODAL VISUALIZZA NOTA (read-only, non-admin) -->
+<div class="mbg" id="mViewNote"><div class="modal" style="max-width:320px">
+  <h3>&#x1F4AC; Nota</h3>
+  <div class="modal-sub" id="viewNoteSub"></div>
+  <div id="viewNoteText" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;font-size:.88rem;color:#1a2e4a;line-height:1.5;min-height:44px;margin-top:8px;white-space:pre-wrap;word-break:break-word;"></div>
+  <div class="mrow" style="margin-top:12px">
+    <button class="mbtn mbtn-cancel" onclick="closeM('mViewNote')" style="width:100%">Chiudi</button>
+  </div>
+</div></div>
+
 <!-- MODAL LOGIN -->
 <div class="mbg" id="mLogin"><div class="modal">
   <h3>&#x1F511; Accesso Amministratore</h3>
@@ -575,7 +585,7 @@ function getDayNote(y,m,d){return LS.getItem("vvf_dn_"+y+"_"+m+"_"+d)||"";}
 function setDayNote(y,m,d,v){v?LS.setItem("vvf_dn_"+y+"_"+m+"_"+d,v):LS.removeItem("vvf_dn_"+y+"_"+m+"_"+d);}
 var dnY=null,dnM=null,dnD=null;
 function openDayNoteModal(y,m,d){
-  if(!isAdmin()){openLogin();return;}
+  if(!isAdmin()){var dn=getDayNote(y,m,d);if(dn)viewNote(d+" "+MESI[m]+" "+y,dn);return;}
   dnY=y;dnM=m;dnD=d;
   document.getElementById("dayNoteSub").textContent=d+" "+MESI[m]+" "+y;
   document.getElementById("dayNoteText").value=getDayNote(y,m,d);
@@ -623,12 +633,17 @@ function doChangePwd(){
 function openChangePwd(){["pwdOld","pwdNew1","pwdNew2"].forEach(function(id){document.getElementById(id).value="";});document.getElementById("pwdErr").style.display="none";closeM("mPers");openM("mPwd");}
 function openM(id){document.getElementById(id).classList.add("open");}
 function closeM(id){document.getElementById(id).classList.remove("open");}
+function viewNote(sub,testo){
+  document.getElementById("viewNoteSub").textContent=sub||"";
+  document.getElementById("viewNoteText").textContent=testo;
+  openM("mViewNote");
+}
 document.querySelectorAll(".mbg").forEach(function(el){el.addEventListener("click",function(e){if(e.target===this)this.classList.remove("open");});});
 
 // CELLA EDIT
 var mPid=null,mY=null,mM=null,mD=null,mSel=null;
 function openEdit(pid,y,m,d,cur){
-  if(!isAdmin()){openLogin();return;}
+  if(!isAdmin()){var nota=getNota(pid,y,m,d);if(nota){var p=getPersonale().find(function(x){return x.id===pid;});viewNote((p?p.grado+" "+p.nome:"")+(" — "+d+" "+MESI[m]+" "+y),nota);}return;}
   mPid=pid;mY=y;mM=m;mD=d;mSel=cur||null;
   var p=getPersonale().find(function(x){return x.id===pid;});
   var ti=getTurnoInfo(y,m,d);
