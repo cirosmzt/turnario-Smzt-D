@@ -474,10 +474,14 @@ function getDeletedBase(){return JSON.parse(LS.getItem("vvf_del_base")||"[]");}
 function saveDeletedBase(a){LS.setItem("vvf_del_base",JSON.stringify(a));}
 function getPermDel(){return JSON.parse(LS.getItem("vvf_perm_del")||"[]");}
 function savePermDel(a){LS.setItem("vvf_perm_del",JSON.stringify(a));}
+function getHideM(y,m){return JSON.parse(LS.getItem("vvf_hide_"+y+"_"+m)||"[]");}
+function saveHideM(y,m,a){a&&a.length?LS.setItem("vvf_hide_"+y+"_"+m,JSON.stringify(a)):LS.removeItem("vvf_hide_"+y+"_"+m);}
 function getPersonale(){
   var del=getDeletedBase();var pd=getPermDel();
-  var base=PERS_BASE.filter(function(p){return del.indexOf(p.id)<0&&pd.indexOf(p.id)<0;}).map(effP);
-  var cu=getCuPers().map(effP);
+  var hm=(typeof vY!=="undefined"&&vY!=null)?getHideM(vY,vM):[];
+  var out=del.concat(pd).concat(hm);
+  var base=PERS_BASE.filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
+  var cu=getCuPers().filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   return base.concat(cu);
 }
 
@@ -514,6 +518,7 @@ var CODICI_EXTRA_DEFAULT={
   "D6" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
   "D7" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
   "D8" :{lbl:"Salto",               bg:"#fecaca",c:"#b91c1c"},
+  "PP" :{lbl:"Doppia Presenza",      bg:"#4ade80",c:"#14532d"},
 };
 function initCodiciDefault(){
   var cu=getCodiciCu();
@@ -529,11 +534,17 @@ function initCodiciDefault(){
   if(LS.getItem("vvf_cod_def_v2")!=="1"){
     cu=getCodiciCu();
     ["D1","D2","D3","D4","D5","D6","D7","D8"].forEach(function(dn){
-      // aggiorna solo se esiste (non null = non eliminato intenzionalmente)
       if(cu[dn]!==null)cu[dn]=CODICI_EXTRA_DEFAULT[dn];
     });
     saveCodiciCu(cu);
     LS.setItem("vvf_cod_def_v2","1");
+  }
+  // Migrazione v3: aggiunge PP (Doppia Presenza)
+  if(LS.getItem("vvf_cod_def_v3")!=="1"){
+    cu=getCodiciCu();
+    if(cu["PP"]===undefined)cu["PP"]=CODICI_EXTRA_DEFAULT["PP"];
+    saveCodiciCu(cu);
+    LS.setItem("vvf_cod_def_v3","1");
   }
 }
 var PALETTE=[
@@ -555,7 +566,7 @@ function getCodici(){
 }
 var CODICI=getCodici();
 var CODICI_ASSENZA=["CO","M","Mi","A104"];
-var CODICI_PRESENZA_EFFETTIVA=["P","AF","FT","EO","SP","ES","PR"];
+var CODICI_PRESENZA_EFFETTIVA=["P","AF","FT","EO","SP","ES","PR","I","PP"];
 
 // CICLO TURNI
 var REF=new Date(2026,3,1);
@@ -878,69 +889,73 @@ function renderPersList(){
       if(ep)ep.style.display="none";
       renderPersList();renderAll();showToast(gNew+" "+nNew+" aggiornato!");
     }else if(action==="rip"){
+      saveHideM(vY,vM,getHideM(vY,vM).filter(function(x){return x!==pid;}));
       saveDeletedBase(getDeletedBase().filter(function(x){return x!==pid;}));
-      var f2=PERS_BASE.find(function(x){return x.id===pid;})||{nome:pid};
-      renderPersList();renderAll();showToast(f2.nome+" ripristinato!");
+      var f2=PERS_BASE.find(function(x){return x.id===pid;})||getCuPers().find(function(x){return x.id===pid;})||{nome:pid};
+      var ov2=getOv(pid);var n2=ov2&&ov2.nome?ov2.nome:f2.nome||pid;
+      renderPersList();renderAll();showToast(n2+" ripristinato per questo mese!");
     }
   };
 }function cancelDel(){persToDelete=null;document.getElementById("confirmDel").style.display="none";}
 function confirmDelDo(){
   if(!persToDelete)return;
-  var isBase=PERS_BASE.some(function(p){return p.id===persToDelete;});
-  if(isBase){
-    var arr=getDeletedBase();if(arr.indexOf(persToDelete)<0)arr.push(persToDelete);saveDeletedBase(arr);
-  }else{
-    saveCuPers(getCuPers().filter(function(p){return p.id!==persToDelete;}));
-    LS.removeItem("vvf_ov_"+persToDelete);
-  }
+  var hm=getHideM(vY,vM);
+  if(hm.indexOf(persToDelete)<0){hm.push(persToDelete);saveHideM(vY,vM,hm);}
   persToDelete=null;document.getElementById("confirmDel").style.display="none";
-  renderPersList();renderAll();showToast("Rimosso dal turnario");
+  renderPersList();renderAll();showToast("Nascosto per "+MESI[vM]+" "+vY);
 }
 function openRimossi(){
   renderRimossiModal();
   openM("mRimossi");
 }
 function renderRimossiModal(){
+  var hm=getHideM(vY,vM);
   var del=getDeletedBase();
+  // unione per retrocompat: del_base (vecchio) + hide_ym (nuovo), deduplicati
+  var allRim=hm.concat(del.filter(function(x){return hm.indexOf(x)<0;}));
   var el=document.getElementById("rimossiList");
   if(!el)return;
   el.innerHTML="";
   var rimBtn=document.getElementById("btnRimossi");
-  if(rimBtn){rimBtn.style.display=(del.length>0&&isAdmin())?"inline-flex":"none";rimBtn.textContent="♻ Rimossi ("+del.length+")";}
-  if(del.length===0){
-    el.innerHTML="<p style='text-align:center;color:#9ca3af;font-size:.8rem;padding:16px 0'>Nessun personale rimosso</p>";
+  if(rimBtn){rimBtn.style.display=(allRim.length>0&&isAdmin())?"inline-flex":"none";rimBtn.textContent="♻ Rimossi ("+allRim.length+")";}
+  if(allRim.length===0){
+    el.innerHTML="<p style='text-align:center;color:#9ca3af;font-size:.8rem;padding:16px 0'>Nessun personale nascosto in "+MESI[vM]+" "+vY+"</p>";
     return;
   }
-  del.forEach(function(id){
-    var f=PERS_BASE.find(function(x){return x.id===id;})||{nome:id,grado:""};
+  allRim.forEach(function(id){
+    var f=PERS_BASE.find(function(x){return x.id===id;})||getCuPers().find(function(x){return x.id===id;})||{nome:id,grado:""};
     var ov=getOv(id);
-    var rNome=ov&&ov.nome?ov.nome:f.nome;
-    var rGrado=ov&&ov.grado?ov.grado:f.grado;
+    var rNome=ov&&ov.nome?ov.nome:f.nome||id;
+    var rGrado=ov&&ov.grado?ov.grado:f.grado||"";
     var row=document.createElement("div");
     row.style.cssText="display:flex;align-items:center;gap:7px;padding:9px 0;border-bottom:1px solid #fed7aa;flex-wrap:wrap";
     var info=document.createElement("div");
     info.style.cssText="flex:1;min-width:0";
-    var g=document.createElement("div");
-    g.style.cssText="font-size:11px;font-weight:600;color:#9a3412";
-    g.appendChild(document.createTextNode(rGrado));
-    var n=document.createElement("div");
-    n.style.cssText="font-size:14px;font-weight:700;color:#111;word-break:break-word";
-    n.appendChild(document.createTextNode(rNome));
-    info.appendChild(g);info.appendChild(n);
+    var gEl=document.createElement("div");
+    gEl.style.cssText="font-size:11px;font-weight:600;color:#9a3412";
+    gEl.appendChild(document.createTextNode(rGrado));
+    var nEl=document.createElement("div");
+    nEl.style.cssText="font-size:14px;font-weight:700;color:#111;word-break:break-word";
+    nEl.appendChild(document.createTextNode(rNome));
+    info.appendChild(gEl);info.appendChild(nEl);
     var ripBtn=document.createElement("button");
     ripBtn.style.cssText="background:#dcfce7;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;color:#14532d;flex-shrink:0";
     ripBtn.appendChild(document.createTextNode("⭯ Ripristina"));
     ripBtn.onclick=(function(cid,cnome){return function(){
+      saveHideM(vY,vM,getHideM(vY,vM).filter(function(x){return x!==cid;}));
       saveDeletedBase(getDeletedBase().filter(function(x){return x!==cid;}));
-      renderRimossiModal();renderPersList();renderAll();showToast(cnome+" ripristinato!");
+      renderRimossiModal();renderPersList();renderAll();showToast(cnome+" di nuovo in "+MESI[vM]+" "+vY+"!");
     };})(id,rNome);
     var delBtn=document.createElement("button");
     delBtn.style.cssText="background:#fee2e2;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;color:#7f1d1d;flex-shrink:0";
     delBtn.appendChild(document.createTextNode("🗑 Elimina"));
     delBtn.onclick=(function(cid,cnome){return function(){
-      if(!confirm("Eliminare definitivamente "+cnome+"?\nNon potrà più essere ripristinato.")){return;}
+      if(!confirm("Eliminare definitivamente "+cnome+"?\nNon potrà più essere ripristinato in nessun mese.")){return;}
       var pd=getPermDel();if(pd.indexOf(cid)<0)pd.push(cid);savePermDel(pd);
+      saveHideM(vY,vM,getHideM(vY,vM).filter(function(x){return x!==cid;}));
       saveDeletedBase(getDeletedBase().filter(function(x){return x!==cid;}));
+      saveCuPers(getCuPers().filter(function(p){return p.id!==cid;}));
+      LS.removeItem("vvf_ov_"+cid);
       renderRimossiModal();renderPersList();renderAll();showToast("Eliminato definitivamente");
     };})(id,rNome);
     row.appendChild(info);row.appendChild(ripBtn);row.appendChild(delBtn);
@@ -1172,7 +1187,7 @@ function renderTable(){
     var admAtt=(admin||dn0)?" data-dcm=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(dn0?dn0.replace(/"/g,"&quot;").substring(0,60):"Aggiungi commento al giorno")+"\"":"";
     h+="<th class=\"th-gg"+admCls+"\" style=\"position:relative;"+hdrBg+"\""+admAtt+">"+g+dotH+"</th>";
   }
-  h+="<th class=\"th-tot\" title=\"Giorni con codice P (Presenza)\">P</th></tr><tr><th class=\"th-dow2 th-dow\">GG</th>";
+  h+="<th class=\"th-tot\" title=\"P = +1 &bull; PP = +2\">P</th></tr><tr><th class=\"th-dow2 th-dow\">GG</th>";
   for(var g=1;g<=dim;g++){
     var dow=new Date(vY,vM,g).getDay();
     var isWEb=(dow===0||dow===6);
@@ -1225,7 +1240,7 @@ function renderTable(){
       var saltoHint=isSaltoDay?"border:1.5px solid "+(ti.tipo==="G"?"#fbbf24":"#93c5fd")+";":"";
       if(s){
         var info=CODICI[s]||{lbl:s,bg:"#f0f4f8",c:"#374151"};
-        if(s==="P")tot++;
+        if(s==="P")tot++;else if(s==="PP")tot+=2;
         var nota=getNota(p.id,vY,vM,g);
         var ndot=nota?"<span style=\"position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:#f97316;border-radius:50%;border:1.5px solid #fff;display:block\"></span>":"";
         var ntitle=info.lbl+(nota?" | "+nota.replace(/"/g,"").substring(0,50):"");
@@ -1281,7 +1296,7 @@ function calcMese(pid,y,m){
     if(s&&s!=="-"){
       c[s]=(c[s]||0)+1;
       if(CODICI_ASSENZA.indexOf(s)>=0) c.ass++;
-      else if(CODICI_PRESENZA_EFFETTIVA.indexOf(s)>=0) c.tot++;
+      else if(CODICI_PRESENZA_EFFETTIVA.indexOf(s)>=0) c.tot+=(s==="PP"?2:1);
     }
   }
   c.pv=(c.P||0)+(c.G||0)+(c.N||0)+(c.SP||0)+(c.AF||0)+(c.I||0);
@@ -1295,7 +1310,7 @@ function renderCnt(){
   pers.forEach(function(p){
     var c=calcMese(p.id,vY,vM);
     h+="<div class=\"cnt-card\"><h4>"+p.grado+" "+p.nome+"</h4>";
-    h+="<div class=\"cnt-row\" style=\"border-bottom:2px solid #1a2e4a;padding-bottom:4px;margin-bottom:3px\"><span style=\"font-weight:700\" title=\"Conta: P, AF, FT, EO, SP, ES, PR\">Presenze effettive</span><span class=\"cnt-v big\">"+c.tot+"</span></div>";
+    h+="<div class=\"cnt-row\" style=\"border-bottom:2px solid #1a2e4a;padding-bottom:4px;margin-bottom:3px\"><span style=\"font-weight:700\" title=\"Conta: P, AF, FT, EO, SP, ES, PR, I (+1); PP (+2)\">Presenze effettive</span><span class=\"cnt-v big\">"+c.tot+"</span></div>";
     if(c.ass>0) h+="<div class=\"cnt-row\" style=\"color:#9a3412\"><span>Totale assenze</span><span class=\"cnt-v\" style=\"color:#9a3412\">"+c.ass+"</span></div>";
     Object.entries(allCodici).forEach(function(entry){
       var code=entry[0],info=entry[1];
@@ -1389,9 +1404,27 @@ function renderLegend(){
   document.getElementById("legendDiv").innerHTML=h;
 }
 
-function cambiaMese(d){vM+=d;if(vM<0){vM=11;vY--;}if(vM>11){vM=0;vY++;}renderAll();}
-function cambiaAnno(d){vY+=d;renderAll();}
-function goToday(){var t=new Date();vY=t.getFullYear();vM=t.getMonth();renderAll();}
+function autoFillMese(y,m){
+  if(!isAdmin())return;
+  var key="vvf_af_"+y+"_"+m;
+  if(LS.getItem(key)==="1")return;
+  var dim=new Date(y,m+1,0).getDate();
+  var pers=getPersonale();
+  for(var d=1;d<=dim;d++){
+    var ti=getTurnoInfo(y,m,d);
+    if(!ti.tipo)continue; // giorno di riposo: non precompilo
+    pers.forEach(function(p){
+      if(!getS(p.id,y,m,d)){
+        setS(p.id,y,m,d,(p.salto>0?"D"+p.salto:"P"));
+      }
+    });
+  }
+  LS.setItem(key,"1");
+}
+function isDecOrLater(y,m){return(y>2026||(y===2026&&m>=11));}
+function cambiaMese(d){vM+=d;if(vM<0){vM=11;vY--;}if(vM>11){vM=0;vY++;}if(isDecOrLater(vY,vM))autoFillMese(vY,vM);renderAll();}
+function cambiaAnno(d){vY+=d;if(isDecOrLater(vY,vM))autoFillMese(vY,vM);renderAll();}
+function goToday(){var t=new Date();vY=t.getFullYear();vM=t.getMonth();if(isDecOrLater(vY,vM))autoFillMese(vY,vM);renderAll();}
 function stampaPDF(){
   // Se dentro iframe (es. preview Claude) la stampa è bloccata dal browser
   var inIframe=false;
@@ -1454,6 +1487,7 @@ function showToast(msg,bg){
       initCodiciDefault();
       CODICI=getCodici();
       initDS();
+      if(isDecOrLater(vY,vM))autoFillMese(vY,vM);
       document.getElementById("fbLoading").style.display="none";
     } else {
       // Aggiornamento real-time da altro dispositivo
