@@ -539,11 +539,18 @@ function initCodiciDefault(){
     saveCodiciCu(cu);
     LS.setItem("vvf_cod_def_v2","1");
   }
-  // Migrazione v3: aggiunge PP (Doppia Presenza)
+  // Migrazione v3: aggiunge PP (Doppia Presenza) + resetta auto-fill dicembre se già eseguito con logica errata
   if(LS.getItem("vvf_cod_def_v3")!=="1"){
     cu=getCodiciCu();
     if(cu["PP"]===undefined)cu["PP"]=CODICI_EXTRA_DEFAULT["PP"];
     saveCodiciCu(cu);
+    // Pulisce le celle di dicembre 2026 compilate con la vecchia logica errata
+    var persAll=PERS_BASE.concat(getCuPers());
+    var dimDic=new Date(2026,12,0).getDate();
+    for(var dd=1;dd<=dimDic;dd++){
+      persAll.forEach(function(pp){LS.removeItem(lsKey(pp.id,2026,11,dd));});
+    }
+    LS.removeItem("vvf_af_2026_11");
     LS.setItem("vvf_cod_def_v3","1");
   }
 }
@@ -1415,7 +1422,8 @@ function autoFillMese(y,m){
     if(!ti.tipo)continue; // giorno di riposo: non precompilo
     pers.forEach(function(p){
       if(!getS(p.id,y,m,d)){
-        setS(p.id,y,m,d,(p.salto>0?"D"+p.salto:"P"));
+        var code=(p.salto>0&&ti.turno==="D"+p.salto)?"D"+p.salto:"P";
+        setS(p.id,y,m,d,code);
       }
     });
   }
