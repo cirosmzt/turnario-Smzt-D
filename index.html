@@ -1169,7 +1169,7 @@ function renderTable(){
     var dn0=getDayNote(vY,vM,g);
     var dotH=dn0?"<span class=\"day-note-dot\" title=\""+dn0.replace(/"/g,"&quot;").substring(0,60)+"\"></span>":"";
     var admCls=admin?" th-gg-adm":"";
-    var admAtt=admin?" data-dcm=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(dn0?dn0.replace(/"/g,"&quot;").substring(0,60):"Aggiungi commento al giorno")+"\"":"";
+    var admAtt=(admin||dn0)?" data-dcm=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(dn0?dn0.replace(/"/g,"&quot;").substring(0,60):"Aggiungi commento al giorno")+"\"":"";
     h+="<th class=\"th-gg"+admCls+"\" style=\"position:relative;"+hdrBg+"\""+admAtt+">"+g+dotH+"</th>";
   }
   h+="<th class=\"th-tot\" title=\"Giorni con codice P (Presenza)\">P</th></tr><tr><th class=\"th-dow2 th-dow\">GG</th>";
