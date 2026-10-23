@@ -1,6 +1,6 @@
-// sw.js v7 — Turnario D VVF Napoli Sommozzatori
+// sw.js v8 — Turnario D VVF Napoli Sommozzatori
 // Entrambe le icone 192x192 e 512x512 embed come base64
-const CACHE='turnario-v7';
+const CACHE='turnario-v8';
 const BASE='/turnario-Smzt-D';
 const ASSETS=[BASE+'/',BASE+'/index.html',BASE+'/manifest.json'];
 
