@@ -476,13 +476,37 @@ function getPermDel(){return JSON.parse(LS.getItem("vvf_perm_del")||"[]");}
 function savePermDel(a){LS.setItem("vvf_perm_del",JSON.stringify(a));}
 function getHideM(y,m){return JSON.parse(LS.getItem("vvf_hide_"+y+"_"+m)||"[]");}
 function saveHideM(y,m,a){a&&a.length?LS.setItem("vvf_hide_"+y+"_"+m,JSON.stringify(a)):LS.removeItem("vvf_hide_"+y+"_"+m);}
+function getPersOrder(){return JSON.parse(LS.getItem("vvf_order")||"null");}
+function savePersOrder(a){LS.setItem("vvf_order",JSON.stringify(a));}
+function ensurePersOrder(){
+  var all=PERS_BASE.map(function(p){return p.id;}).concat(getCuPers().map(function(p){return p.id;}));
+  var cur=getPersOrder();
+  if(!cur){savePersOrder(all);return all;}
+  var filtered=cur.filter(function(id){return all.indexOf(id)>=0;});
+  all.forEach(function(id){if(filtered.indexOf(id)<0)filtered.push(id);});
+  if(JSON.stringify(filtered)!==JSON.stringify(cur))savePersOrder(filtered);
+  return filtered;
+}
+function movePers(pid,dir){
+  var ord=ensurePersOrder();
+  var idx=ord.indexOf(pid);if(idx<0)return;
+  var to=idx+dir;if(to<0||to>=ord.length)return;
+  var tmp=ord[idx];ord[idx]=ord[to];ord[to]=tmp;
+  savePersOrder(ord);
+}
 function getPersonale(){
   var del=getDeletedBase();var pd=getPermDel();
   var hm=(typeof vY!=="undefined"&&vY!=null)?getHideM(vY,vM):[];
   var out=del.concat(pd).concat(hm);
   var base=PERS_BASE.filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var cu=getCuPers().filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
-  return base.concat(cu);
+  var all=base.concat(cu);
+  var ord=ensurePersOrder();
+  all.sort(function(a,b){
+    var ia=ord.indexOf(a.id),ib=ord.indexOf(b.id);
+    if(ia<0)ia=9999;if(ib<0)ib=9999;return ia-ib;
+  });
+  return all;
 }
 
 // CODICI BASE IMMUTABILI (solo 7 — non eliminabili)
@@ -539,19 +563,22 @@ function initCodiciDefault(){
     saveCodiciCu(cu);
     LS.setItem("vvf_cod_def_v2","1");
   }
-  // Migrazione v3: aggiunge PP (Doppia Presenza) + resetta auto-fill dicembre se già eseguito con logica errata
+  // Migrazione v3: aggiunge PP (Doppia Presenza)
   if(LS.getItem("vvf_cod_def_v3")!=="1"){
     cu=getCodiciCu();
     if(cu["PP"]===undefined)cu["PP"]=CODICI_EXTRA_DEFAULT["PP"];
     saveCodiciCu(cu);
-    // Pulisce le celle di dicembre 2026 compilate con la vecchia logica errata
+    LS.setItem("vvf_cod_def_v3","1");
+  }
+  // Migrazione v3b: resetta auto-fill dicembre (v18a aveva logica errata, v3 può essere già stato eseguito)
+  if(LS.getItem("vvf_cod_def_v3b")!=="1"){
     var persAll=PERS_BASE.concat(getCuPers());
     var dimDic=new Date(2026,12,0).getDate();
     for(var dd=1;dd<=dimDic;dd++){
       persAll.forEach(function(pp){LS.removeItem(lsKey(pp.id,2026,11,dd));});
     }
     LS.removeItem("vvf_af_2026_11");
-    LS.setItem("vvf_cod_def_v3","1");
+    LS.setItem("vvf_cod_def_v3b","1");
   }
 }
 var PALETTE=[
@@ -817,7 +844,20 @@ function renderPersList(){
 
     if(admin){
       var btns=document.createElement("div");
-      btns.style.cssText="display:flex;gap:5px;flex-shrink:0";
+      btns.style.cssText="display:flex;gap:5px;flex-shrink:0;align-items:center";
+      // Frecce su/giù
+      var arrows=document.createElement("div");
+      arrows.style.cssText="display:flex;flex-direction:column;gap:2px;margin-right:2px";
+      var bUp=document.createElement("button");
+      bUp.style.cssText="border:none;border-radius:5px;padding:3px 7px;font-size:13px;font-weight:700;cursor:pointer;background:#e0e7ff;color:#3730a3;line-height:1";
+      bUp.setAttribute("data-action","up");bUp.setAttribute("data-pid",p.id);
+      bUp.appendChild(document.createTextNode("▲"));
+      var bDn=document.createElement("button");
+      bDn.style.cssText="border:none;border-radius:5px;padding:3px 7px;font-size:13px;font-weight:700;cursor:pointer;background:#e0e7ff;color:#3730a3;line-height:1";
+      bDn.setAttribute("data-action","dn");bDn.setAttribute("data-pid",p.id);
+      bDn.appendChild(document.createTextNode("▼"));
+      arrows.appendChild(bUp);arrows.appendChild(bDn);
+      btns.appendChild(arrows);
       var bMod=document.createElement("button");
       bMod.style.cssText="border:none;border-radius:7px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;background:#2563eb;color:#ffffff";
       bMod.setAttribute("data-action","mod");
@@ -870,7 +910,9 @@ function renderPersList(){
     var btn=e.target.closest("[data-action]");
     if(!btn)return;
     var action=btn.getAttribute("data-action"),pid=btn.getAttribute("data-pid");
-    if(action==="mod"){
+    if(action==="up"){movePers(pid,-1);renderPersList();renderAll();return;
+    }else if(action==="dn"){movePers(pid,1);renderPersList();renderAll();return;
+    }else if(action==="mod"){
       el.querySelectorAll("[id^='ep_']").forEach(function(ep){if(ep.id!=="ep_"+pid)ep.style.display="none";});
       var ep=document.getElementById("ep_"+pid);
       if(ep){ep.style.display=(ep.style.display==="none"||!ep.style.display)?"block":"none";}
@@ -1412,7 +1454,6 @@ function renderLegend(){
 }
 
 function autoFillMese(y,m){
-  if(!isAdmin())return;
   var key="vvf_af_"+y+"_"+m;
   if(LS.getItem(key)==="1")return;
   var dim=new Date(y,m+1,0).getDate();
