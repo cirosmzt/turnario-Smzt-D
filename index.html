@@ -652,7 +652,8 @@ function getTurnoInfo(y,m,d){
   var blocco=Math.floor(ciclo/4);
   var pos=ciclo%4;
   if(pos<2)return {turno:"D"+((3+blocco)%8+1),tipo:pos===0?"G":"N",override:false};
-  return {turno:null,tipo:null,override:false};
+  if(pos===2)return {turno:null,tipo:"SM",override:false}; // smontante notte
+  return {turno:null,tipo:null,override:false}; // riposo
 }
 
 // LOCALSTORAGE
@@ -732,7 +733,7 @@ function openEdit(pid,y,m,d,cur){
   var p=getPersonale().find(function(x){return x.id===pid;});
   var ti=getTurnoInfo(y,m,d);
   document.getElementById("editTitle").textContent=p?p.grado+" "+p.nome:"";
-  document.getElementById("editSub").textContent=d+" "+MESI[m]+" "+y+(ti.turno?" - Turno "+ti.turno+" ("+ti.tipo+")":" - Riposo");
+  document.getElementById("editSub").textContent=d+" "+MESI[m]+" "+y+(ti.turno?" - Turno "+ti.turno+" ("+ti.tipo+")":ti.tipo==="SM"?" - Smontante notte":" - Riposo");
   document.getElementById("customCode").value="";
   var g=document.getElementById("codeGrid");g.innerHTML="";
   Object.entries(CODICI).forEach(function(entry){
@@ -1237,8 +1238,8 @@ function renderHeader(){
   document.getElementById("oggiInfo").textContent=today.getDate()+" "+MESI[today.getMonth()]+" "+today.getFullYear();
   document.getElementById("oggiTurno").innerHTML=ti.turno
     ?"<span style=\"background:"+(ti.tipo==="N"?"#1e3a8a":"#e0f2fe")+";color:"+(ti.tipo==="N"?"#e0e7ff":"#0369a1")+";border-radius:4px;padding:1px 7px;font-weight:700\">"+ti.turno+" "+(ti.tipo==="G"?"&#x2600; G":"&#x1F319; N")+"</span>"
-    :"&#x26AA; Riposo";
-  document.getElementById("hdrSub").textContent="Oggi: "+today.getDate()+"/"+(today.getMonth()+1)+"/"+today.getFullYear()+(ti.turno?" - "+ti.turno+" "+ti.tipo:" - Riposo");
+    :(ti.tipo==="SM"?"&#x1F319;&#xFE0F; Smontante notte":"&#x26AA; Riposo");
+  document.getElementById("hdrSub").textContent="Oggi: "+today.getDate()+"/"+(today.getMonth()+1)+"/"+today.getFullYear()+(ti.turno?" - "+ti.turno+" "+ti.tipo:ti.tipo==="SM"?" - Smontante notte":" - Riposo");
   document.getElementById("printMeseLbl").textContent=MESI[vM]+" "+vY;
   document.getElementById("lblMese").textContent="- "+MESI[vM]+" "+vY;
   document.getElementById("lblAnno").textContent=vY;
@@ -1267,7 +1268,7 @@ function renderTable(){
     var isWE=(dow===0||dow===6);
     var isTod=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
     var ti0=getTurnoInfo(vY,vM,g);
-    var cBg0=ti0.tipo==="G"?"#fffbeb":ti0.tipo==="N"?"#dbeafe":"#f9fafb";
+    var cBg0=ti0.tipo==="G"?"#fffbeb":ti0.tipo==="N"?"#dbeafe":ti0.tipo==="SM"?"#f1f5f9":"#f9fafb";
     var hdrBg=isTod?"background:#c0111f;color:#fff;":"background:"+cBg0+";"+(dow===0?"color:#c0111f;font-weight:700;":dow===6?"color:#374151;font-style:italic;":"color:#374151;");
     var dn0=getDayNote(vY,vM,g);
     var dotH=dn0?"<span class=\"day-note-dot\" title=\""+dn0.replace(/"/g,"&quot;").substring(0,60)+"\"></span>":"";
@@ -1280,7 +1281,7 @@ function renderTable(){
     var dow=new Date(vY,vM,g).getDay();
     var isWEb=(dow===0||dow===6);
     var ti0b=getTurnoInfo(vY,vM,g);
-    var cBg0b=ti0b.tipo==="G"?"#fffbeb":ti0b.tipo==="N"?"#dbeafe":"#f9fafb";
+    var cBg0b=ti0b.tipo==="G"?"#fffbeb":ti0b.tipo==="N"?"#dbeafe":ti0b.tipo==="SM"?"#f1f5f9":"#f9fafb";
     var dowStyle="background:"+cBg0b+";"+(dow===0?"color:#c0111f;font-weight:700;":isWEb?"color:#374151;font-style:italic;":"color:#637082;");
     h+="<th class=\"th-dow\" style=\""+dowStyle+"\">"+GG[dow]+"</th>";
   }
@@ -1289,7 +1290,7 @@ function renderTable(){
   h+="<tr class=\"tr-base\"><td class=\"td-base-nome\">Turno base (<span style=\"color:#f59e0b\">&#x2600;</span> Giorno &bull; <span style=\"color:#94a3b8\">&#x1F319;</span> Notte)</td>";
   for(var g=1;g<=dim;g++){
     var ti=getTurnoInfo(vY,vM,g);
-    var colBgBase=ti.tipo==="G"?"#fffbeb":ti.tipo==="N"?"#dbeafe":"#f9fafb";
+    var colBgBase=ti.tipo==="G"?"#fffbeb":ti.tipo==="N"?"#dbeafe":ti.tipo==="SM"?"#f1f5f9":"#f9fafb";
     var bn=getBaseNote(vY,vM,g);
     if(ti.turno){
       var cls=ti.tipo==="N"?"d-N":"d-G";
@@ -1298,7 +1299,10 @@ function renderTable(){
       if(admin)h+="<td style=\"padding:1px;background:"+colBgBase+"\"><span class=\""+cls+(ti.override?" d-OV":"")+"\" data-tov=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\"Click per modificare\">"+lbl+"</span></td>";
       else h+="<td style=\"background:"+colBgBase+"\"><span class=\""+cls+"\">"+lbl+"</span></td>";
     }else{
-      // Giorno riposo: mostra nota o tasto +
+      // Smontante notte o Riposo: mostra etichetta + eventuale nota
+      var offLblTxt=ti.tipo==="SM"
+        ?"<span style='font-size:.58rem;color:#64748b;font-weight:700;letter-spacing:.3px'>SM</span>"
+        :"<span style='font-size:.58rem;color:#94a3b8;font-weight:600'>R</span>";
       if(bn){
         var info=CODICI[bn]||{bg:"#f0f4f8",c:"#374151"};
         h+="<td style=\"padding:1px;background:"+colBgBase+"\">";
@@ -1306,9 +1310,9 @@ function renderTable(){
         else h+="<span class=\"d-REST-code\" style=\"background:"+info.bg+";color:"+info.c+"\">"+bn+"</span>";
         h+="</td>";
       }else{
-        h+="<td style=\"background:"+colBgBase+"\">";
-        if(admin)h+="<span class=\"d-REST-edit\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\"Aggiungi nota giorno libero\">+</span>";
-        else h+="<span class=\"off-lbl\">&mdash;</span>";
+        h+="<td style=\"text-align:center;vertical-align:middle;background:"+colBgBase+"\">";
+        if(admin)h+="<span class=\"d-REST-edit\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(ti.tipo==="SM"?"Smontante notte":"Riposo")+"\">"+offLblTxt+"</span>";
+        else h+=offLblTxt;
         h+="</td>";
       }
     }
@@ -1324,7 +1328,7 @@ function renderTable(){
       var isTod=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
       var todS=isTod?"outline:2px solid #c0111f;outline-offset:-1px;":"";
       var isSaltoDay=(p.salto>0&&ti.turno==="D"+p.salto);
-      var colBg=ti.tipo==="G"?"#fffbeb":ti.tipo==="N"?"#dbeafe":"#f9fafb";
+      var colBg=ti.tipo==="G"?"#fffbeb":ti.tipo==="N"?"#dbeafe":ti.tipo==="SM"?"#f1f5f9":"#f9fafb";
       var saltoHint=isSaltoDay?"border:1.5px solid "+(ti.tipo==="G"?"#fbbf24":"#93c5fd")+";":"";
       if(s){
         var info=CODICI[s]||{lbl:s,bg:"#f0f4f8",c:"#374151"};
@@ -1355,7 +1359,7 @@ function renderTable(){
     var cntP=0;
     pers.forEach(function(p2){if(getS(p2.id,vY,vM,g)==="P")cntP++;});
     var tiP=getTurnoInfo(vY,vM,g);
-    var colBgP=tiP.tipo==="G"?"#fffbeb":tiP.tipo==="N"?"#dbeafe":"#f9fafb";
+    var colBgP=tiP.tipo==="G"?"#fffbeb":tiP.tipo==="N"?"#dbeafe":tiP.tipo==="SM"?"#f1f5f9":"#f9fafb";
     var isTodP=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
     var todSP=isTodP?"outline:2px solid #c0111f;outline-offset:-1px;":"";
     h+="<td style=\"background:"+colBgP+";"+todSP+"color:#1a2e4a\">"+(cntP>0?"<strong>"+cntP+"</strong>":"")+"</td>";
@@ -1499,7 +1503,7 @@ function autoFillMese(y,m){
   var pers=getPersonale();
   for(var d=1;d<=dim;d++){
     var ti=getTurnoInfo(y,m,d);
-    if(!ti.tipo)continue; // giorno di riposo: non precompilo
+    if(!ti.tipo||ti.tipo==="SM")continue; // smontante notte o riposo: non precompilo
     pers.forEach(function(p){
       if(!getS(p.id,y,m,d)){
         var code=(p.salto>0&&ti.turno==="D"+p.salto)?"D"+p.salto:"P";
