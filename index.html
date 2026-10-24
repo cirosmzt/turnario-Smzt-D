@@ -580,27 +580,30 @@ function initCodiciDefault(){
     LS.setItem("vvf_cod_def_v3b","1");
   }
   // Migrazione v4: rimuove Montesano dall'organico (fisso e custom)
-  // I personali custom hanno id "cu_TIMESTAMP", non "montesano" — filtra per nome
-  var pd4=getPermDel();
-  if(pd4.indexOf("montesano")<0){pd4.push("montesano");savePermDel(pd4);}
-  var cu4=getCuPers().filter(function(p){
-    if(p.id==="montesano")return false;
-    if(p.nome&&p.nome.toLowerCase().indexOf("montesano")>=0)return false;
-    return true;
-  });
-  // Rimuovi anche gli ID cu_* di Montesano dal perm_del (non necessario) e dall'order
-  var rimossiId=getCuPers().filter(function(p){
-    return p.id!=="montesano"&&p.nome&&p.nome.toLowerCase().indexOf("montesano")>=0;
-  }).map(function(p){return p.id;});
-  rimossiId.forEach(function(rid){LS.removeItem("vvf_ov_"+rid);});
-  saveCuPers(cu4);
-  LS.removeItem("vvf_ov_montesano");
-  var ord4=getPersOrder();
-  if(ord4){
-    var escludi=["montesano"].concat(rimossiId);
-    savePersOrder(ord4.filter(function(id){return escludi.indexOf(id)<0;}));
+  // Eseguita UNA SOLA VOLTA — dopo che è stata eseguita il flag vvf_mig_v4="1" la blocca
+  // così l'utente può aggiungere Montesano manualmente nei mesi che servono senza che venga rimosso
+  if(LS.getItem("vvf_mig_v4")!=="1"){
+    var pd4=getPermDel();
+    if(pd4.indexOf("montesano")<0){pd4.push("montesano");savePermDel(pd4);}
+    // I personali custom hanno id "cu_TIMESTAMP", non "montesano" — filtra per nome
+    var cu4=getCuPers().filter(function(p){
+      if(p.id==="montesano")return false;
+      if(p.nome&&p.nome.toLowerCase().indexOf("montesano")>=0)return false;
+      return true;
+    });
+    var rimossiId=getCuPers().filter(function(p){
+      return p.id!=="montesano"&&p.nome&&p.nome.toLowerCase().indexOf("montesano")>=0;
+    }).map(function(p){return p.id;});
+    rimossiId.forEach(function(rid){LS.removeItem("vvf_ov_"+rid);});
+    saveCuPers(cu4);
+    LS.removeItem("vvf_ov_montesano");
+    var ord4=getPersOrder();
+    if(ord4){
+      var escludi=["montesano"].concat(rimossiId);
+      savePersOrder(ord4.filter(function(id){return escludi.indexOf(id)<0;}));
+    }
+    LS.setItem("vvf_mig_v4","1");
   }
-  LS.setItem("vvf_mig_v4","1");
 }
 var PALETTE=[
   {name:"Verde",bg:"#dcfce7",c:"#14532d"},{name:"Giallo",bg:"#fef9c3",c:"#713f12"},
