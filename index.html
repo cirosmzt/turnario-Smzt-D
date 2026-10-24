@@ -349,7 +349,7 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
     <h4>&#x2795; Aggiungi personale</h4>
     <div class="inp-row">
       <input class="inp-sm" type="text" id="newGrado" list="gradi-list" placeholder="Qualifica (es. CRE)" style="max-width:100px">
-      <input class="inp-sm" type="text" id="newNome" placeholder="Nome Cognome" style="flex:2">
+      <input class="inp-sm" type="text" id="newNome" placeholder="Cognome Nome" style="flex:2">
       <select class="inp-sm" id="newSalto" style="max-width:100px">
         <option value="0">Nessun salto</option>
         <option value="1">D1</option><option value="2">D2</option>
@@ -497,6 +497,21 @@ function getPersonale(){
   var del=getDeletedBase();var pd=getPermDel();
   var hm=(typeof vY!=="undefined"&&vY!=null)?getHideM(vY,vM):[];
   var out=del.concat(pd).concat(hm);
+  var base=PERS_BASE.filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
+  var cu=getCuPers().filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
+  var all=base.concat(cu);
+  var ord=ensurePersOrder();
+  all.sort(function(a,b){
+    var ia=ord.indexOf(a.id),ib=ord.indexOf(b.id);
+    if(ia<0)ia=9999;if(ib<0)ib=9999;return ia-ib;
+  });
+  return all;
+}
+// Come getPersonale() ma senza filtro hideM — usata dal cumulativo anno
+// per includere chiunque abbia turni nel corso dell'anno, anche se nascosto nel mese corrente
+function getPersonaleAnno(){
+  var del=getDeletedBase();var pd=getPermDel();
+  var out=del.concat(pd); // NO hideM
   var base=PERS_BASE.filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var cu=getCuPers().filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var all=base.concat(cu);
@@ -912,7 +927,7 @@ function renderPersList(){
       for(var i2=1;i2<=8;i2++) selOpts+="<option value='"+i2+"'"+(p.salto===i2?" selected":"")+">D"+i2+"</option>";
       ep.innerHTML="<div style='font-size:11px;font-weight:700;color:#637082;margin-bottom:3px'>Qualifica:</div>"
         +"<input type='text' list='gradi-list' value='"+grado.replace(/'/g,"&#39;")+"' id='eg_"+p.id+"' style='width:100%;padding:8px;border:2px solid #bfdbfe;border-radius:7px;font-size:14px;margin-bottom:8px;box-sizing:border-box'>"
-        +"<div style='font-size:11px;font-weight:700;color:#637082;margin-bottom:3px'>Nome e Cognome:</div>"
+        +"<div style='font-size:11px;font-weight:700;color:#637082;margin-bottom:3px'>Cognome e Nome:</div>"
         +"<input type='text' value='"+nome.replace(/'/g,"&#39;")+"' id='en_"+p.id+"' style='width:100%;padding:8px;border:2px solid #bfdbfe;border-radius:7px;font-size:14px;margin-bottom:8px;box-sizing:border-box'>"
         +"<div style='font-size:11px;font-weight:700;color:#637082;margin-bottom:3px'>Salto:</div>"
         +"<select id='es_"+p.id+"' style='width:100%;padding:8px;border:2px solid #bfdbfe;border-radius:7px;font-size:14px;margin-bottom:10px;box-sizing:border-box'>"+selOpts+"</select>"
@@ -1452,7 +1467,7 @@ function renderCnt(){
 }
 
 function renderCum(){
-  var pers=getPersonale();
+  var pers=getPersonaleAnno();
   var h="<thead><tr><th style=\"min-width:130px\">Personale</th>";
   for(var m=0;m<=vM;m++)h+="<th"+(m===vM?" style=\"background:#c0111f\"":"")+">"+MESI[m].substring(0,3)+"</th>";
   h+="<th style=\"background:#0f2236;min-width:45px\">TOT</th></tr></thead><tbody>";
