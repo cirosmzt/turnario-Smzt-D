@@ -1,6 +1,6 @@
-// sw.js v10 — Turnario D VVF Napoli Sommozzatori
+// sw.js v8 — Turnario D VVF Napoli Sommozzatori
 // Entrambe le icone 192x192 e 512x512 embed come base64
-const CACHE='turnario-v10';
+const CACHE='turnario-v8';
 const BASE='/turnario-Smzt-D';
 const ASSETS=[BASE+'/',BASE+'/index.html',BASE+'/manifest.json'];
 
@@ -4734,17 +4734,6 @@ self.addEventListener('fetch',function(e){
   var url=e.request.url;
   if(url.endsWith('/icon-192.png')){e.respondWith(iconResponse(ICON192_B64));return;}
   if(url.endsWith('/icon-512.png')){e.respondWith(iconResponse(ICON512_B64));return;}
-  // index.html sempre dalla rete (network-first) così aggiornamenti arrivano subito
-  if(url.endsWith('/')||url.endsWith('/index.html')){
-    e.respondWith(
-      fetch(e.request).then(function(r){
-        var rc=r.clone();
-        caches.open(CACHE).then(function(c){c.put(e.request,rc);});
-        return r;
-      }).catch(function(){return caches.match(e.request);})
-    );
-    return;
-  }
   e.respondWith(
     caches.match(e.request).then(function(r){
       return r||fetch(e.request);
