@@ -1300,9 +1300,6 @@ function renderTable(){
       else h+="<td style=\"background:"+colBgBase+"\"><span class=\""+cls+"\">"+lbl+"</span></td>";
     }else{
       // Smontante notte o Riposo: mostra etichetta + eventuale nota
-      var offLblTxt=ti.tipo==="SM"
-        ?"<span style='font-size:.58rem;color:#64748b;font-weight:700;letter-spacing:.3px'>SM</span>"
-        :"<span style='font-size:.58rem;color:#94a3b8;font-weight:600'>R</span>";
       if(bn){
         var info=CODICI[bn]||{bg:"#f0f4f8",c:"#374151"};
         h+="<td style=\"padding:1px;background:"+colBgBase+"\">";
@@ -1310,9 +1307,9 @@ function renderTable(){
         else h+="<span class=\"d-REST-code\" style=\"background:"+info.bg+";color:"+info.c+"\">"+bn+"</span>";
         h+="</td>";
       }else{
-        h+="<td style=\"text-align:center;vertical-align:middle;background:"+colBgBase+"\">";
-        if(admin)h+="<span class=\"d-REST-edit\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(ti.tipo==="SM"?"Smontante notte":"Riposo")+"\">"+offLblTxt+"</span>";
-        else h+=offLblTxt;
+        h+="<td style=\"background:"+colBgBase+"\">";
+        if(admin)h+="<span class=\"d-REST-edit\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(ti.tipo==="SM"?"Smontante notte":"Riposo")+"\">+</span>";
+        else h+="<span class=\"off-lbl\">&mdash;</span>";
         h+="</td>";
       }
     }
