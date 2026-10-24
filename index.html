@@ -148,18 +148,16 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
 .turno-G{background:#e0f2fe;color:#0369a1;}.turno-N{background:#1e3a8a;color:#e0e7ff;}
 @media print{
   .no-print{display:none!important;}
-  .hdr,.nav,.mbg,.lock-bar,.legend{display:none!important;}
+  .hdr,.nav,.mbg,.lock-bar,.legend,.sec{display:none!important;}
   .twrap{overflow:visible!important;}
-  @page{size:A3 landscape;margin:5mm;}
+  @page{size:A4 landscape;margin:8mm;}
   html,body{height:auto!important;overflow:visible!important;}
-  body{zoom:0.58!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
-  table{font-size:6px!important;}
-  .sec{padding:4px!important;}
-  .cnt-grid{grid-template-columns:repeat(5,1fr)!important;}
-  .cnt-card{break-inside:avoid;font-size:10px!important;padding:6px 8px!important;}
-  .cnt-row{font-size:9px!important;}
-  .cum-t{font-size:9px!important;}
-  .cum-t th,.cum-t td{padding:2px 4px!important;}
+  body{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  table{font-size:8px!important;width:100%!important;}
+  th,td{padding:2px 3px!important;}
+  .td-nome{min-width:90px!important;font-size:7.5px!important;}
+  .th-nome{min-width:90px!important;}
+  #printHdr{display:block!important;}
 }
 .th-gg-adm{cursor:pointer;position:relative;}
 .th-gg-adm:hover{outline:2px solid #f59e0b;outline-offset:-2px;}
@@ -201,6 +199,7 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
     <button class="hdr-btn" id="btnAuth" onclick="toggleAuth()">&#x1F511; Admin</button>
     <button class="hdr-btn no-print" onclick="openPersonale()">&#x1F464; Personale</button>
     <button class="hdr-btn no-print" onclick="openCodici()">&#x1F4CB; Codici</button>
+    <button class="hdr-btn no-print" onclick="openM('mBackup')">&#x1F4BE; Backup</button>
     <button class="hdr-btn no-print" onclick="stampaPDF()">&#x1F5A8; PDF</button>
   </div>
 </div>
@@ -398,6 +397,21 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
   </div>
   <div class="mrow" style="margin-top:11px">
     <button class="mbtn mbtn-cancel" onclick="closeM('mCodici')">Chiudi</button>
+  </div>
+</div></div>
+
+<!-- MODAL BACKUP CSV -->
+<div class="mbg" id="mBackup"><div class="modal" style="max-width:360px">
+  <h3>&#x1F4BE; Backup dati</h3>
+  <p style="font-size:.82rem;color:#555;margin:6px 0 14px">Esporta tutti i dati del turnario in un file CSV per conservarne una copia. Usa lo stesso file per ripristinare i dati in caso di problemi.</p>
+  <button onclick="esportaCSV()" class="mbtn mbtn-ok" style="width:100%;margin-bottom:14px">&#x2B07;&#xFE0F; Esporta CSV</button>
+  <div style="border-top:1px solid var(--brd);padding-top:12px">
+    <div class="inp-lbl" style="margin-bottom:6px">&#x1F4C2; Importa / Ripristina da CSV:</div>
+    <input type="file" id="csvFileInput" accept=".csv" style="font-size:.8rem;width:100%;margin-bottom:10px">
+    <button onclick="importaCSV()" class="mbtn mbtn-ok" style="width:100%;background:#059669">&#x2B06;&#xFE0F; Importa e ripristina</button>
+  </div>
+  <div class="mrow" style="margin-top:14px">
+    <button class="mbtn mbtn-cancel" onclick="closeM('mBackup')">Chiudi</button>
   </div>
 </div></div>
 
@@ -1515,31 +1529,67 @@ function cambiaMese(d){vM+=d;if(vM<0){vM=11;vY--;}if(vM>11){vM=0;vY++;}if(isDecO
 function cambiaAnno(d){vY+=d;if(isDecOrLater(vY,vM))autoFillMese(vY,vM);renderAll();}
 function goToday(){var t=new Date();vY=t.getFullYear();vM=t.getMonth();if(isDecOrLater(vY,vM))autoFillMese(vY,vM);renderAll();}
 function stampaPDF(){
-  // Se dentro iframe (es. preview Claude) la stampa è bloccata dal browser
   var inIframe=false;
   try{inIframe=(window.self!==window.top);}catch(e){inIframe=true;}
   if(inIframe){
-    showToast('⚠️ Apri l\'app direttamente nel browser o dalla PWA installata, poi usa il tasto PDF','#c0111f');
+    showToast('⚠️ Apri l\'app nel browser o dalla PWA installata, poi usa PDF','#c0111f');
     return;
   }
-  var toRestore=[];
-  document.querySelectorAll(".no-print").forEach(function(el){
-    var skip=el.classList.contains("hdr")||el.classList.contains("nav")||
-              el.classList.contains("mbg")||el.classList.contains("lock-bar")||
-              el.id==="lockBar"||el.classList.contains("legend");
-    if(!skip&&el.id!=="addForm"&&el.id!=="confirmDel"){
-      el.classList.remove("no-print");
-      toRestore.push(el);
-    }
+  // Imposta intestazione mese nel printHdr
+  try{
+    document.getElementById("printMeseLbl").textContent=
+      (typeof vM!=="undefined"&&typeof vY!=="undefined")
+        ?["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"][vM]+" "+vY:""
+  }catch(e){}
+  // Stampa solo la tabella turni (le sezioni .sec restano no-print → CSS le nasconde)
+  window.print();
+}
+function esportaCSV(){
+  var rows=['"chiave","valore"'];
+  Object.keys(fbCache).forEach(function(k){
+    if(k.indexOf("vvf_")!==0)return;
+    var raw=fbCache[k];
+    var v=typeof raw==="object"?JSON.stringify(raw):(raw===null||raw===undefined?"":String(raw));
+    rows.push('"'+k.replace(/"/g,'""')+'","'+v.replace(/"/g,'""')+'"');
   });
-  try{document.getElementById("printHdr").style.display="block";}catch(e){}
-  setTimeout(function(){
-    window.print();
-    setTimeout(function(){
-      toRestore.forEach(function(el){el.classList.add("no-print");});
-      try{document.getElementById("printHdr").style.display="none";}catch(e){}
-    },500);
-  },100);
+  var csv="﻿"+rows.join("\r\n"); // BOM UTF-8 per Excel
+  var blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  a.href=url;
+  var d=new Date();
+  var dd=String(d.getDate()).padStart(2,"0");
+  var mm=String(d.getMonth()+1).padStart(2,"0");
+  a.download="turnario_backup_"+d.getFullYear()+mm+dd+".csv";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("✅ CSV esportato ("+( rows.length-1)+" voci)");
+  closeM("mBackup");
+}
+function importaCSV(){
+  var file=document.getElementById("csvFileInput").files[0];
+  if(!file){showToast("⚠️ Seleziona un file CSV","#c0111f");return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var text=e.target.result.replace(/^﻿/,""); // rimuove BOM
+    var lines=text.split(/\r?\n/);
+    var count=0;
+    for(var i=1;i<lines.length;i++){
+      var line=lines[i].trim();
+      if(!line)continue;
+      var m=line.match(/^"((?:[^"]|"")*)","((?:[^"]|"")*)"$/);
+      if(!m)continue;
+      var k=m[1].replace(/""/g,'"');
+      var v=m[2].replace(/""/g,'"');
+      if(k.indexOf("vvf_")!==0)continue;
+      LS.setItem(k,v);
+      count++;
+    }
+    showToast("✅ "+count+" voci ripristinate — ricarico…");
+    setTimeout(function(){window.location.reload();},1800);
+  };
+  reader.onerror=function(){showToast("❌ Errore lettura file","#c0111f");};
+  reader.readAsText(file,"utf-8");
 }
 function showToast(msg,bg){
   bg=bg||"#16a34a";
