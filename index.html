@@ -1395,19 +1395,19 @@ function renderTable(){
   // RIGA FONDO CASSA
   var fondoDay=parseInt(LS.getItem("vvf_fondo_day")||"10");
   var fondoPagati=getFondoPagati(vY,vM);
-  var fondoTot=pers.length;
-  h+="<tr class=\"tr-fondo\"><td class=\"td-fondo-nome\">&#x1F4B0; Fondo cassa"+(admin?"<span style='float:right;margin-right:4px;cursor:pointer;font-size:.55rem;color:#b45309' onclick='openFondoDay()' title='Cambia giorno raccolta'>&#9881;</span>":"")+"</td>";
+  var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(pers.length))||pers.length;
+  var paidN=fondoPagati.length;
+  var allPaidF=paidN>=fondoTarget&&fondoTarget>0;
+  var bgF=allPaidF?"#bbf7d0":"#fef9c3";
+  var cF=allPaidF?"#166534":"#92400e";
+  h+="<tr class=\"tr-fondo\"><td class=\"td-fondo-nome\" onclick=\"openFondo("+vY+","+vM+")\" style=\"cursor:pointer\" title=\"Fondo cassa - tocca per aprire\">&#x1F4B0; Fondo cassa</td>";
   for(var g=1;g<=dim;g++){
     var isTodF=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
     var todSF=isTodF?"outline:2px solid #c0111f;outline-offset:-1px;":"";
     if(g===fondoDay){
-      var paidN=fondoPagati.length;
-      var allPaidF=paidN>=fondoTot&&fondoTot>0;
-      var bgF=allPaidF?"#bbf7d0":"#fef08a";
-      var cF=allPaidF?"#166534":"#854d0e";
-      h+="<td class=\"td-fondo-act\" style=\"background:"+bgF+";"+todSF+"\" data-ffondo=\"1\" data-fy=\""+vY+"\" data-fm=\""+vM+"\" title=\"Fondo cassa - click per gestire\">"+
+      h+="<td class=\"td-fondo-act\" style=\"background:"+bgF+";"+todSF+"\" onclick=\"openFondo("+vY+","+vM+")\" title=\"Fondo cassa - tocca per aprire\">"+
         "<div style='font-size:.7rem'>&#x1F4B0;</div>"+
-        "<div style='font-size:.58rem;font-weight:700;color:"+cF+"'>"+paidN+"/"+fondoTot+"</div></td>";
+        "<div style='font-size:.58rem;font-weight:700;color:"+cF+"'>"+paidN+"/"+fondoTarget+"</div></td>";
     }else{
       h+="<td class=\"td-fondo-empty\" style=\""+todSF+"\"></td>";
     }
@@ -1425,8 +1425,6 @@ function renderTable(){
     if(rc){openRestCode(parseInt(rc.dataset.ty),parseInt(rc.dataset.tm),parseInt(rc.dataset.td));return;}
     var dcm=e.target.closest("[data-dcm]");
     if(dcm){openDayNoteModal(parseInt(dcm.dataset.ty),parseInt(dcm.dataset.tm),parseInt(dcm.dataset.td));return;}
-    var ff=e.target.closest("[data-ffondo]");
-    if(ff){openFondo(parseInt(ff.dataset.fy),parseInt(ff.dataset.fm));return;}
   });
 }
 
@@ -1596,46 +1594,53 @@ function openFondo(y,m){
   _fondoY=y;_fondoM=m;
   var mesi=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
   var fondoDay=parseInt(LS.getItem("vvf_fondo_day")||"10");
-  document.getElementById("fondoSub").textContent=mesi[m]+" "+y+" · Giorno raccolta: "+fondoDay;
+  var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(getPersonale().length))||getPersonale().length;
+  document.getElementById("fondoSub").textContent=
+    mesi[m]+" "+y+" · Giorno raccolta: "+fondoDay+" · Target: "+fondoTarget+" persone";
   renderFondoModal(y,m);
   openM("mFondo");
 }
 function renderFondoModal(y,m){
   var pers=getPersonale();
   var pagati=getFondoPagati(y,m);
+  var target=parseInt(LS.getItem("vvf_fondo_target")||String(pers.length))||pers.length;
   var nPaid=pagati.length;
-  var nTot=pers.length;
-  var perc=nTot>0?Math.round(nPaid/nTot*100):0;
-  var barW=Math.min(perc,100);
-  var allDone=nPaid>=nTot&&nTot>0;
-  // Contatore
-  var cH="<div style='background:"+(allDone?"#f0fdf4":"#fffbeb")+";border:1px solid "+(allDone?"#bbf7d0":"#fde68a")+";border-radius:8px;padding:8px 12px;margin-bottom:8px'>"+
+  var allDone=nPaid>=target&&target>0;
+  var perc=target>0?Math.min(Math.round(nPaid/target*100),100):0;
+  // Barra avanzamento
+  var cH="<div style='background:"+(allDone?"#f0fdf4":"#fffbeb")+";border:1px solid "+(allDone?"#bbf7d0":"#fde68a")+
+    ";border-radius:8px;padding:8px 12px;margin-bottom:10px'>"+
     "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:5px'>"+
-    "<span style='font-size:.8rem;font-weight:700;color:"+(allDone?"#166534":"#854d0e")+
-    "'>"+(allDone?"✅ Tutti hanno contribuito":"💰 "+nPaid+" / "+nTot+" contribuiti")+"</span>"+
-    "<span style='font-size:.75rem;color:#64748b'>"+perc+"%</span></div>"+
-    "<div style='background:#e2e8f0;border-radius:99px;height:6px;overflow:hidden'>"+
-    "<div style='background:"+(allDone?"#16a34a":"#f59e0b")+";width:"+barW+"%;height:100%;border-radius:99px;transition:width .3s'></div></div></div>";
+    "<span style='font-size:.82rem;font-weight:700;color:"+(allDone?"#166534":"#92400e")+
+    "'>"+(allDone?"&#x2705; Raccolta completata!":"&#x1F4B0; "+nPaid+" / "+target+" contribuiti")+"</span>"+
+    "<span style='font-size:.76rem;color:#64748b'>"+perc+"%</span></div>"+
+    "<div style='background:#e2e8f0;border-radius:99px;height:7px;overflow:hidden'>"+
+    "<div style='background:"+(allDone?"#16a34a":"#f59e0b")+";width:"+perc+"%;height:100%;border-radius:99px'></div></div>"+
+    (admin?"<div style='margin-top:8px;display:flex;gap:6px'>"+
+      "<button class='pa-btn' style='font-size:.68rem;flex:1' onclick='fondoImpostaDag()'>&#9881; Giorno raccolta</button>"+
+      "<button class='pa-btn' style='font-size:.68rem;flex:1' onclick='fondoImpostaTarget()'>&#9881; Target persone</button>"+
+    "</div>":"")+
+    "</div>";
   document.getElementById("fondoContatore").innerHTML=cH;
   // Liste
   var daPagare=pers.filter(function(p){return pagati.indexOf(p.id)<0;});
   var haPagato=pers.filter(function(p){return pagati.indexOf(p.id)>=0;});
   var h="";
   if(daPagare.length>0){
-    h+="<div style='font-size:.7rem;font-weight:700;color:#c0111f;margin:6px 0 4px'>⏳ Da contribuire ("+daPagare.length+"):</div>";
+    h+="<div style='font-size:.72rem;font-weight:700;color:#c0111f;margin:4px 0 4px'>&#x23F3; Da contribuire ("+daPagare.length+"):</div>";
     daPagare.forEach(function(p){
-      h+="<div style='display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-radius:7px;margin-bottom:3px;background:#fef2f2;border:1px solid #fecaca'>"+
-        "<span style='font-size:.8rem'><strong>"+p.grado+"</strong> "+p.nome+"</span>";
-      if(admin)h+="<button class='pa-btn' style='background:#059669;color:#fff;font-size:.7rem;min-width:64px;flex-shrink:0' onclick='toggleFondoPagato(\""+p.id+"\")'>✓ Pagato</button>";
+      h+="<div style='display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:7px;margin-bottom:3px;background:#fef2f2;border:1px solid #fecaca'>"+
+        "<span style='font-size:.82rem'><strong>"+p.grado+"</strong> "+p.nome+"</span>";
+      if(admin)h+="<button class='pa-btn' style='background:#059669;color:#fff;font-size:.72rem;min-width:70px;flex-shrink:0' onclick='toggleFondoPagato(\""+p.id.replace(/"/g,"&quot;")+"\")''>&#x2713; Pagato</button>";
       h+="</div>";
     });
   }
   if(haPagato.length>0){
-    h+="<div style='font-size:.7rem;font-weight:700;color:#166534;margin:10px 0 4px'>✅ Contribuito ("+haPagato.length+"):</div>";
+    h+="<div style='font-size:.72rem;font-weight:700;color:#166534;margin:"+(daPagare.length>0?"10":"4")+"px 0 4px'>&#x2705; Contribuito ("+haPagato.length+"):</div>";
     haPagato.forEach(function(p){
-      h+="<div style='display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-radius:7px;margin-bottom:3px;background:#f0fdf4;border:1px solid #bbf7d0'>"+
-        "<span style='font-size:.8rem'><strong>"+p.grado+"</strong> "+p.nome+"</span>";
-      if(admin)h+="<button class='pa-btn' style='background:#e2e8f0;color:#374151;font-size:.7rem;min-width:64px;flex-shrink:0' onclick='toggleFondoPagato(\""+p.id+"\")'>✗ Annulla</button>";
+      h+="<div style='display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:7px;margin-bottom:3px;background:#f0fdf4;border:1px solid #bbf7d0'>"+
+        "<span style='font-size:.82rem'><strong>"+p.grado+"</strong> "+p.nome+"</span>";
+      if(admin)h+="<button class='pa-btn' style='background:#e2e8f0;color:#374151;font-size:.72rem;min-width:70px;flex-shrink:0' onclick='toggleFondoPagato(\""+p.id.replace(/"/g,"&quot;")+"\")')'>&#x2715; Annulla</button>";
       h+="</div>";
     });
   }
@@ -1647,26 +1652,39 @@ function toggleFondoPagato(pid){
   if(idx>=0)pagati.splice(idx,1);else pagati.push(pid);
   saveFondoPagati(_fondoY,_fondoM,pagati);
   renderFondoModal(_fondoY,_fondoM);
-  // aggiorna la cella nella tabella senza rebuildarla tutta
-  var cell=document.querySelector("[data-ffondo]");
-  if(cell){
-    var pers=getPersonale();
-    var allF=pagati.length>=pers.length&&pers.length>0;
-    cell.style.background=allF?"#bbf7d0":"#fef08a";
-    cell.innerHTML="<div style='font-size:.7rem'>&#x1F4B0;</div><div style='font-size:.58rem;font-weight:700;color:"+(allF?"#166534":"#854d0e")+"'>"+pagati.length+"/"+pers.length+"</div>";
+  // aggiorna la cella nella tabella senza rimontare tutta la riga
+  var cells=document.querySelectorAll(".td-fondo-act");
+  if(cells.length){
+    var tgt=parseInt(LS.getItem("vvf_fondo_target")||String(getPersonale().length))||getPersonale().length;
+    var allF=pagati.length>=tgt&&tgt>0;
+    cells.forEach(function(c){
+      c.style.background=allF?"#bbf7d0":"#fef9c3";
+      c.innerHTML="<div style='font-size:.7rem'>&#x1F4B0;</div><div style='font-size:.58rem;font-weight:700;color:"+(allF?"#166534":"#92400e")+"'>"+pagati.length+"/"+tgt+"</div>";
+    });
   }
 }
-function openFondoDay(){
-  if(!admin)return;
+function fondoImpostaDag(){
   var cur=LS.getItem("vvf_fondo_day")||"10";
-  var val=window.prompt("Giorno del mese per la raccolta fondo cassa (1-28):",cur);
+  var val=window.prompt("Giorno del mese per la raccolta fondo cassa (1–28):",cur);
   if(val===null)return;
   var n=parseInt(val);
   if(isNaN(n)||n<1||n>28){showToast("⚠️ Inserisci un numero tra 1 e 28","#c0111f");return;}
   LS.setItem("vvf_fondo_day",String(n));
   showToast("✅ Giorno raccolta impostato al "+n);
+  closeM("mFondo");renderTable();
+}
+function fondoImpostaTarget(){
+  var cur=LS.getItem("vvf_fondo_target")||String(getPersonale().length);
+  var val=window.prompt("Quante persone devono contribuire al fondo cassa?",cur);
+  if(val===null)return;
+  var n=parseInt(val);
+  if(isNaN(n)||n<1||n>99){showToast("⚠️ Inserisci un numero valido (1–99)","#c0111f");return;}
+  LS.setItem("vvf_fondo_target",String(n));
+  showToast("✅ Target impostato a "+n+" persone");
+  renderFondoModal(_fondoY,_fondoM);
   renderTable();
 }
+function openFondoDay(){fondoImpostaDag();}
 // ===== FINE FONDO CASSA =====
 
 function esportaCSV(){
