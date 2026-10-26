@@ -544,14 +544,17 @@ function getPersonale(){
   var base=PERS_BASE.filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var cu=getCuPers().filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var all=base.concat(cu);
-  // Includi personale archiviato se ha dati nel mese corrente
+  // Includi personale archiviato se ha dati nel mese corrente (e non esiste già per nome)
   if(typeof vY!=="undefined"&&vY!=null){
     var arc=getArchive();
     arc.forEach(function(ap){
       if(all.find(function(x){return x.id===ap.id;}))return;
+      if(all.find(function(x){return (x.nome||"").toLowerCase()===(ap.nome||"").toLowerCase();}))return;
       if(hasDataInMonth(ap.id,vY,vM))all.push(effP(ap));
     });
   }
+  // Dedup per nome: safety net contro duplicati residui in getCuPers()
+  var _snP={};all=all.filter(function(p){var nl=(p.nome||"").toLowerCase().trim();if(!nl)return true;if(_snP[nl])return false;_snP[nl]=true;return true;});
   var ord=ensurePersOrder();
   all.sort(function(a,b){
     var ia=ord.indexOf(a.id),ib=ord.indexOf(b.id);
@@ -567,14 +570,17 @@ function getPersonaleAnno(){
   var base=PERS_BASE.filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var cu=getCuPers().filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var all=base.concat(cu);
-  // Includi personale archiviato se ha dati nell'anno corrente
+  // Includi personale archiviato se ha dati nell'anno corrente (e non esiste già per nome)
   if(typeof vY!=="undefined"&&vY!=null){
     var arcA=getArchive();
     arcA.forEach(function(ap){
       if(all.find(function(x){return x.id===ap.id;}))return;
+      if(all.find(function(x){return (x.nome||"").toLowerCase()===(ap.nome||"").toLowerCase();}))return;
       if(hasDataInYear(ap.id,vY))all.push(effP(ap));
     });
   }
+  // Dedup per nome: safety net contro duplicati residui in getCuPers()
+  var _snA={};all=all.filter(function(p){var nl=(p.nome||"").toLowerCase().trim();if(!nl)return true;if(_snA[nl])return false;_snA[nl]=true;return true;});
   var ord=ensurePersOrder();
   all.sort(function(a,b){
     var ia=ord.indexOf(a.id),ib=ord.indexOf(b.id);
@@ -702,6 +708,47 @@ function initCodiciDefault(){
       return true;
     }));
     LS.setItem("vvf_mig_v5","1");
+  }
+  // Migrazione v6: deduplica getCuPers() per nome (tiene ultimo), rimuove custom di base (spadaccio/senarcia/fabozzi)
+  if(LS.getItem("vvf_mig_v6")!=="1"){
+    var cu6=getCuPers();
+    // Rimuovi custom con stesso nome di PERS_BASE
+    var baseNomi=PERS_BASE.map(function(p){return (p.nome||"").toLowerCase().trim();});
+    cu6=cu6.filter(function(p){return baseNomi.indexOf((p.nome||"").toLowerCase().trim())<0;});
+    // Deduplica per nome: tieni l'ultima occorrenza (più recente)
+    var seenN6={};
+    for(var i6=cu6.length-1;i6>=0;i6--){
+      var nl6=(cu6[i6].nome||"").toLowerCase().trim();
+      if(!nl6)continue;
+      if(seenN6[nl6]){cu6.splice(i6,1);}
+      else{seenN6[nl6]=true;}
+    }
+    saveCuPers(cu6);
+    LS.setItem("vvf_mig_v6","1");
+  }
+  // Migrazione v7: ri-esegue pulizia v6 (copre sync Firebase) + pulisce permDel da IDs custom orfani
+  if(LS.getItem("vvf_mig_v7")!=="1"){
+    var cu7=getCuPers();
+    // Rimuovi custom con stesso nome di PERS_BASE
+    var baseNomi7=PERS_BASE.map(function(p){return (p.nome||"").toLowerCase().trim();});
+    cu7=cu7.filter(function(p){return baseNomi7.indexOf((p.nome||"").toLowerCase().trim())<0;});
+    // Deduplica per nome: tieni l'ultima occorrenza (ID più alto = aggiunto per ultimo)
+    var seenN7={};
+    for(var i7=cu7.length-1;i7>=0;i7--){
+      var nl7=(cu7[i7].nome||"").toLowerCase().trim();
+      if(!nl7)continue;
+      if(seenN7[nl7]){LS.removeItem("vvf_ov_"+cu7[i7].id);cu7.splice(i7,1);}
+      else{seenN7[nl7]=true;}
+    }
+    saveCuPers(cu7);
+    // Pulisci permDel: rimuovi eventuali ID custom non più in getCuPers()
+    var validCu7=cu7.map(function(p){return p.id;});
+    var pd7=getPermDel().filter(function(id){
+      // tieni IDs base (senza "cu_") e IDs custom ancora presenti
+      return id.indexOf("cu_")<0||validCu7.indexOf(id)>=0;
+    });
+    savePermDel(pd7);
+    LS.setItem("vvf_mig_v7","1");
   }
 }
 var PALETTE=[
@@ -1146,11 +1193,21 @@ function addPersona(){
   if(!grado){err.textContent="Inserisci la qualifica";err.style.display="block";return;}
   if(!nome){err.textContent="Inserisci il nome";err.style.display="block";return;}
   var nomeLower=nome.toLowerCase();
+  var pdA=getPermDel();
+  var hmA=getHideM(vY,vM);
   var allExisting=PERS_BASE.concat(getCuPers());
-  var dup=allExisting.find(function(p){return (p.nome||"").toLowerCase()===nomeLower;});
+  // Se esiste ma è nascosto nel mese corrente → ripristina automaticamente
+  var hiddenM=allExisting.find(function(p){return (p.nome||"").toLowerCase()===nomeLower&&hmA.indexOf(p.id)>=0;});
+  if(hiddenM){
+    saveHideM(vY,vM,hmA.filter(function(x){return x!==hiddenM.id;}));
+    saveDeletedBase(getDeletedBase().filter(function(x){return x!==hiddenM.id;}));
+    document.getElementById("newGrado").value="";document.getElementById("newNome").value="";
+    err.style.display="none";renderPersList();renderAll();
+    showToast((hiddenM.grado||"")+" "+hiddenM.nome+" ripristinato per "+MESI[vM]+"!");return;
+  }
+  // Blocca solo se attivo (non in permDel, non in hideM)
+  var dup=allExisting.find(function(p){return (p.nome||"").toLowerCase()===nomeLower&&pdA.indexOf(p.id)<0&&hmA.indexOf(p.id)<0;});
   if(dup){err.textContent="Esiste già un personale con questo nome";err.style.display="block";return;}
-  var arcDup=getArchive().find(function(p){return (p.nome||"").toLowerCase()===nomeLower;});
-  if(arcDup){err.textContent="Personale in archivio storico — contatta l'amministratore";err.style.display="block";return;}
   var cu=getCuPers();
   cu.push({id:"cu_"+Date.now(),nome:nome,grado:grado,base:false,salto:salto});
   saveCuPers(cu);
