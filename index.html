@@ -503,6 +503,20 @@ function getDeletedBase(){return JSON.parse(LS.getItem("vvf_del_base")||"[]");}
 function saveDeletedBase(a){LS.setItem("vvf_del_base",JSON.stringify(a));}
 function getPermDel(){return JSON.parse(LS.getItem("vvf_perm_del")||"[]");}
 function savePermDel(a){LS.setItem("vvf_perm_del",JSON.stringify(a));}
+function getArchive(){return JSON.parse(LS.getItem("vvf_pers_archive")||"[]");}
+function saveArchive(a){LS.setItem("vvf_pers_archive",JSON.stringify(a));}
+function hasDataInMonth(pid,y,m){
+  var dim=new Date(y,m+1,0).getDate();
+  for(var g=1;g<=dim;g++){
+    var v=LS.getItem("vvf_"+pid+"_"+y+"_"+m+"_"+g);
+    if(v&&v!=="-"&&v!=="")return true;
+  }
+  return false;
+}
+function hasDataInYear(pid,y){
+  for(var mm=0;mm<12;mm++){if(hasDataInMonth(pid,y,mm))return true;}
+  return false;
+}
 function getHideM(y,m){return JSON.parse(LS.getItem("vvf_hide_"+y+"_"+m)||"[]");}
 function saveHideM(y,m,a){a&&a.length?LS.setItem("vvf_hide_"+y+"_"+m,JSON.stringify(a)):LS.removeItem("vvf_hide_"+y+"_"+m);}
 function getPersOrder(){return JSON.parse(LS.getItem("vvf_order")||"null");}
@@ -530,6 +544,14 @@ function getPersonale(){
   var base=PERS_BASE.filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var cu=getCuPers().filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var all=base.concat(cu);
+  // Includi personale archiviato se ha dati nel mese corrente
+  if(typeof vY!=="undefined"&&vY!=null){
+    var arc=getArchive();
+    arc.forEach(function(ap){
+      if(all.find(function(x){return x.id===ap.id;}))return;
+      if(hasDataInMonth(ap.id,vY,vM))all.push(effP(ap));
+    });
+  }
   var ord=ensurePersOrder();
   all.sort(function(a,b){
     var ia=ord.indexOf(a.id),ib=ord.indexOf(b.id);
@@ -545,6 +567,14 @@ function getPersonaleAnno(){
   var base=PERS_BASE.filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var cu=getCuPers().filter(function(p){return out.indexOf(p.id)<0;}).map(effP);
   var all=base.concat(cu);
+  // Includi personale archiviato se ha dati nell'anno corrente
+  if(typeof vY!=="undefined"&&vY!=null){
+    var arcA=getArchive();
+    arcA.forEach(function(ap){
+      if(all.find(function(x){return x.id===ap.id;}))return;
+      if(hasDataInYear(ap.id,vY))all.push(effP(ap));
+    });
+  }
   var ord=ensurePersOrder();
   all.sort(function(a,b){
     var ia=ord.indexOf(a.id),ib=ord.indexOf(b.id);
@@ -648,6 +678,30 @@ function initCodiciDefault(){
       savePersOrder(ord4.filter(function(id){return escludi.indexOf(id)<0;}));
     }
     LS.setItem("vvf_mig_v4","1");
+  }
+  // Migrazione v5: sposta Spadaccio/Senarcia/Fabozzi in permDel+archivio; rimuove Montesano duplicato
+  if(LS.getItem("vvf_mig_v5")!=="1"){
+    var arc5=getArchive();
+    var pd5=getPermDel();
+    ["spadaccio","senarcia","fabozzi"].forEach(function(bid){
+      if(pd5.indexOf(bid)<0)pd5.push(bid);
+      var bp=PERS_BASE.find(function(x){return x.id===bid;});
+      if(bp&&!arc5.find(function(x){return x.id===bid;})){arc5.push({id:bp.id,nome:bp.nome,grado:bp.grado});}
+    });
+    savePermDel(pd5);saveArchive(arc5);
+    // Rimuovi Montesano custom senza "guida" nel grado (duplicato C.S.E.)
+    var cu5=getCuPers();
+    var montDup=cu5.filter(function(p){
+      return p.nome&&p.nome.toLowerCase().indexOf("montesano")>=0&&
+             !(p.grado&&p.grado.toLowerCase().indexOf("guida")>=0);
+    });
+    montDup.forEach(function(p){LS.removeItem("vvf_ov_"+p.id);});
+    saveCuPers(cu5.filter(function(p){
+      if(p.nome&&p.nome.toLowerCase().indexOf("montesano")>=0&&
+         !(p.grado&&p.grado.toLowerCase().indexOf("guida")>=0))return false;
+      return true;
+    }));
+    LS.setItem("vvf_mig_v5","1");
   }
 }
 var PALETTE=[
@@ -1069,13 +1123,16 @@ function renderRimossiModal(){
     delBtn.style.cssText="background:#fee2e2;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;color:#7f1d1d;flex-shrink:0";
     delBtn.appendChild(document.createTextNode("🗑 Elimina"));
     delBtn.onclick=(function(cid,cnome){return function(){
-      if(!confirm("Eliminare definitivamente "+cnome+"?\nNon potrà più essere ripristinato in nessun mese.")){return;}
+      if(!confirm("Eliminare definitivamente "+cnome+"?\nResterà visibile solo nei mesi dove era già presente.")){return;}
       var pd=getPermDel();if(pd.indexOf(cid)<0)pd.push(cid);savePermDel(pd);
       saveHideM(vY,vM,getHideM(vY,vM).filter(function(x){return x!==cid;}));
       saveDeletedBase(getDeletedBase().filter(function(x){return x!==cid;}));
+      // Salva in archivio per visualizzazione storica
+      var archP=PERS_BASE.find(function(x){return x.id===cid;})||getCuPers().find(function(x){return x.id===cid;});
+      if(archP){var arc=getArchive();if(!arc.find(function(x){return x.id===cid;})){arc.push({id:cid,nome:archP.nome,grado:archP.grado});saveArchive(arc);}}
       saveCuPers(getCuPers().filter(function(p){return p.id!==cid;}));
       LS.removeItem("vvf_ov_"+cid);
-      renderRimossiModal();renderPersList();renderAll();showToast("Eliminato definitivamente");
+      renderRimossiModal();renderPersList();renderAll();showToast("Rimosso dall'organico");
     };})(id,rNome);
     row.appendChild(info);row.appendChild(ripBtn);row.appendChild(delBtn);
     el.appendChild(row);
@@ -1088,6 +1145,12 @@ function addPersona(){
   var err=document.getElementById("persErr");
   if(!grado){err.textContent="Inserisci la qualifica";err.style.display="block";return;}
   if(!nome){err.textContent="Inserisci il nome";err.style.display="block";return;}
+  var nomeLower=nome.toLowerCase();
+  var allExisting=PERS_BASE.concat(getCuPers());
+  var dup=allExisting.find(function(p){return (p.nome||"").toLowerCase()===nomeLower;});
+  if(dup){err.textContent="Esiste già un personale con questo nome";err.style.display="block";return;}
+  var arcDup=getArchive().find(function(p){return (p.nome||"").toLowerCase()===nomeLower;});
+  if(arcDup){err.textContent="Personale in archivio storico — contatta l'amministratore";err.style.display="block";return;}
   var cu=getCuPers();
   cu.push({id:"cu_"+Date.now(),nome:nome,grado:grado,base:false,salto:salto});
   saveCuPers(cu);
@@ -1298,7 +1361,7 @@ function renderTable(){
     var isWE=(dow===0||dow===6);
     var isTod=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
     var ti0=getTurnoInfo(vY,vM,g);
-    var cBg0=ti0.tipo==="G"?"#fffbeb":ti0.tipo==="N"?"#dbeafe":ti0.tipo==="SM"?"#f1f5f9":"#f9fafb";
+    var cBg0=ti0.tipo==="G"?"#fde68a":ti0.tipo==="N"?"#bfdbfe":ti0.tipo==="SM"?"#f1f5f9":"#f9fafb";
     var hdrBg=isTod?"background:#c0111f;color:#fff;":"background:"+cBg0+";"+(dow===0?"color:#c0111f;font-weight:700;":dow===6?"color:#374151;font-style:italic;":"color:#374151;");
     var dn0=getDayNote(vY,vM,g);
     var dotH=dn0?"<span class=\"day-note-dot\" title=\""+dn0.replace(/"/g,"&quot;").substring(0,60)+"\"></span>":"";
@@ -1311,7 +1374,7 @@ function renderTable(){
     var dow=new Date(vY,vM,g).getDay();
     var isWEb=(dow===0||dow===6);
     var ti0b=getTurnoInfo(vY,vM,g);
-    var cBg0b=ti0b.tipo==="G"?"#fffbeb":ti0b.tipo==="N"?"#dbeafe":ti0b.tipo==="SM"?"#f1f5f9":"#f9fafb";
+    var cBg0b=ti0b.tipo==="G"?"#fde68a":ti0b.tipo==="N"?"#bfdbfe":ti0b.tipo==="SM"?"#f1f5f9":"#f9fafb";
     var dowStyle="background:"+cBg0b+";"+(dow===0?"color:#c0111f;font-weight:700;":isWEb?"color:#374151;font-style:italic;":"color:#637082;");
     h+="<th class=\"th-dow\" style=\""+dowStyle+"\">"+GG[dow]+"</th>";
   }
@@ -1320,7 +1383,7 @@ function renderTable(){
   h+="<tr class=\"tr-base\"><td class=\"td-base-nome\">Turno base (<span style=\"color:#f59e0b\">&#x2600;</span> Giorno &bull; <span style=\"color:#94a3b8\">&#x1F319;</span> Notte)</td>";
   for(var g=1;g<=dim;g++){
     var ti=getTurnoInfo(vY,vM,g);
-    var colBgBase=ti.tipo==="G"?"#fffbeb":ti.tipo==="N"?"#dbeafe":ti.tipo==="SM"?"#f1f5f9":"#f9fafb";
+    var colBgBase=ti.tipo==="G"?"#fde68a":ti.tipo==="N"?"#bfdbfe":ti.tipo==="SM"?"#f1f5f9":"#f9fafb";
     var bn=getBaseNote(vY,vM,g);
     if(ti.turno){
       var cls=ti.tipo==="N"?"d-N":"d-G";
@@ -1355,7 +1418,7 @@ function renderTable(){
       var isTod=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
       var todS=isTod?"outline:2px solid #c0111f;outline-offset:-1px;":"";
       var isSaltoDay=(p.salto>0&&ti.turno==="D"+p.salto);
-      var colBg=ti.tipo==="G"?"#fffbeb":ti.tipo==="N"?"#dbeafe":ti.tipo==="SM"?"#f1f5f9":"#f9fafb";
+      var colBg=ti.tipo==="G"?"#fde68a":ti.tipo==="N"?"#bfdbfe":ti.tipo==="SM"?"#f1f5f9":"#f9fafb";
       var saltoHint=isSaltoDay?"border:1.5px solid "+(ti.tipo==="G"?"#fbbf24":"#93c5fd")+";":"";
       if(s){
         var info=CODICI[s]||{lbl:s,bg:"#f0f4f8",c:"#374151"};
@@ -1386,7 +1449,7 @@ function renderTable(){
     var cntP=0;
     pers.forEach(function(p2){if(getS(p2.id,vY,vM,g)==="P")cntP++;});
     var tiP=getTurnoInfo(vY,vM,g);
-    var colBgP=tiP.tipo==="G"?"#fffbeb":tiP.tipo==="N"?"#dbeafe":tiP.tipo==="SM"?"#f1f5f9":"#f9fafb";
+    var colBgP=tiP.tipo==="G"?"#fde68a":tiP.tipo==="N"?"#bfdbfe":tiP.tipo==="SM"?"#f1f5f9":"#f9fafb";
     var isTodP=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
     var todSP=isTodP?"outline:2px solid #c0111f;outline-offset:-1px;":"";
     h+="<td style=\"background:"+colBgP+";"+todSP+"color:#1a2e4a\">"+(cntP>0?"<strong>"+cntP+"</strong>":"")+"</td>";
@@ -1400,14 +1463,16 @@ function renderTable(){
   var allPaidF=paidN>=fondoTarget&&fondoTarget>0;
   var bgF=allPaidF?"#bbf7d0":"#fef9c3";
   var cF=allPaidF?"#166534":"#92400e";
-  h+="<tr class=\"tr-fondo\"><td class=\"td-fondo-nome\" onclick=\"openFondo("+vY+","+vM+")\" style=\"cursor:pointer\" title=\"Fondo cassa - tocca per aprire\">&#x1F4B0; Fondo cassa</td>";
+  h+="<tr class=\"tr-fondo\"><td class=\"td-fondo-nome\"><button style='all:unset;cursor:pointer;font-size:.62rem;font-weight:700;color:#854d0e;padding:2px 7px;display:block;width:100%;box-sizing:border-box' onclick='openFondo("+vY+","+vM+")' title='Fondo cassa'>&#x1F4B0; Fondo cassa</button></td>";
   for(var g=1;g<=dim;g++){
     var isTodF=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
     var todSF=isTodF?"outline:2px solid #c0111f;outline-offset:-1px;":"";
     if(g===fondoDay){
-      h+="<td class=\"td-fondo-act\" style=\"background:"+bgF+";"+todSF+"\" onclick=\"openFondo("+vY+","+vM+")\" title=\"Fondo cassa - tocca per aprire\">"+
+      h+="<td class=\"td-fondo-act\" style=\""+todSF+"\">"+
+        "<button style='all:unset;display:block;width:100%;cursor:pointer;text-align:center;background:"+bgF+";padding:1px 0' onclick='openFondo("+vY+","+vM+")' title='Fondo cassa'>"+
         "<div style='font-size:.7rem'>&#x1F4B0;</div>"+
-        "<div style='font-size:.58rem;font-weight:700;color:"+cF+"'>"+paidN+"/"+fondoTarget+"</div></td>";
+        "<div style='font-size:.58rem;font-weight:700;color:"+cF+"'>"+paidN+"/"+fondoTarget+"</div>"+
+        "</button></td>";
     }else{
       h+="<td class=\"td-fondo-empty\" style=\""+todSF+"\"></td>";
     }
@@ -1425,6 +1490,10 @@ function renderTable(){
     if(rc){openRestCode(parseInt(rc.dataset.ty),parseInt(rc.dataset.tm),parseInt(rc.dataset.td));return;}
     var dcm=e.target.closest("[data-dcm]");
     if(dcm){openDayNoteModal(parseInt(dcm.dataset.ty),parseInt(dcm.dataset.tm),parseInt(dcm.dataset.td));return;}
+  });
+  // Fondo cassa: listener robusto per mobile (fallback oltre al button inline)
+  document.querySelectorAll(".td-fondo-act,.td-fondo-nome").forEach(function(el){
+    el.addEventListener("click",function(){try{openFondo(vY,vM);}catch(e2){showToast("⚠️ "+e2.message,"#c0111f");}});
   });
 }
 
@@ -1591,16 +1660,19 @@ function saveFondoPagati(y,m,arr){LS.setItem("vvf_fondo_"+y+"_"+m,JSON.stringify
 
 var _fondoY,_fondoM;
 function openFondo(y,m){
-  _fondoY=y;_fondoM=m;
-  var mesi=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
-  var fondoDay=parseInt(LS.getItem("vvf_fondo_day")||"10");
-  var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(getPersonale().length))||getPersonale().length;
-  document.getElementById("fondoSub").textContent=
-    mesi[m]+" "+y+" · Giorno raccolta: "+fondoDay+" · Target: "+fondoTarget+" persone";
-  renderFondoModal(y,m);
-  openM("mFondo");
+  try{
+    _fondoY=y;_fondoM=m;
+    var mesi=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+    var fondoDay=parseInt(LS.getItem("vvf_fondo_day")||"10");
+    var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(getPersonale().length))||getPersonale().length;
+    document.getElementById("fondoSub").textContent=
+      mesi[m]+" "+y+" · Giorno raccolta: "+fondoDay+" · Target: "+fondoTarget+" persone";
+    renderFondoModal(y,m);
+    openM("mFondo");
+  }catch(e){showToast("⚠️ Errore fondo: "+e.message,"#c0111f");}
 }
 function renderFondoModal(y,m){
+  var admin=isAdmin();
   var pers=getPersonale();
   var pagati=getFondoPagati(y,m);
   var target=parseInt(LS.getItem("vvf_fondo_target")||String(pers.length))||pers.length;
@@ -1631,7 +1703,7 @@ function renderFondoModal(y,m){
     daPagare.forEach(function(p){
       h+="<div style='display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:7px;margin-bottom:3px;background:#fef2f2;border:1px solid #fecaca'>"+
         "<span style='font-size:.82rem'><strong>"+p.grado+"</strong> "+p.nome+"</span>";
-      if(admin)h+="<button class='pa-btn' style='background:#059669;color:#fff;font-size:.72rem;min-width:70px;flex-shrink:0' onclick='toggleFondoPagato(\""+p.id.replace(/"/g,"&quot;")+"\")''>&#x2713; Pagato</button>";
+      if(admin)h+="<button class='pa-btn' style='background:#059669;color:#fff;font-size:.72rem;min-width:70px;flex-shrink:0' onclick='toggleFondoPagato(\""+p.id.replace(/"/g,"&quot;")+"\")'> &#x2713; Pagato</button>";
       h+="</div>";
     });
   }
@@ -1640,7 +1712,7 @@ function renderFondoModal(y,m){
     haPagato.forEach(function(p){
       h+="<div style='display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:7px;margin-bottom:3px;background:#f0fdf4;border:1px solid #bbf7d0'>"+
         "<span style='font-size:.82rem'><strong>"+p.grado+"</strong> "+p.nome+"</span>";
-      if(admin)h+="<button class='pa-btn' style='background:#e2e8f0;color:#374151;font-size:.72rem;min-width:70px;flex-shrink:0' onclick='toggleFondoPagato(\""+p.id.replace(/"/g,"&quot;")+"\")')'>&#x2715; Annulla</button>";
+      if(admin)h+="<button class='pa-btn' style='background:#e2e8f0;color:#374151;font-size:.72rem;min-width:70px;flex-shrink:0' onclick='toggleFondoPagato(\""+p.id.replace(/"/g,"&quot;")+"\")'> &#x2715; Annulla</button>";
       h+="</div>";
     });
   }
@@ -1658,8 +1730,9 @@ function toggleFondoPagato(pid){
     var tgt=parseInt(LS.getItem("vvf_fondo_target")||String(getPersonale().length))||getPersonale().length;
     var allF=pagati.length>=tgt&&tgt>0;
     cells.forEach(function(c){
-      c.style.background=allF?"#bbf7d0":"#fef9c3";
-      c.innerHTML="<div style='font-size:.7rem'>&#x1F4B0;</div><div style='font-size:.58rem;font-weight:700;color:"+(allF?"#166534":"#92400e")+"'>"+pagati.length+"/"+tgt+"</div>";
+      c.innerHTML="<button style='all:unset;display:block;width:100%;cursor:pointer;text-align:center;background:"+(allF?"#bbf7d0":"#fef9c3")+";padding:1px 0' onclick='openFondo("+_fondoY+","+_fondoM+")'>"+
+        "<div style='font-size:.7rem'>&#x1F4B0;</div>"+
+        "<div style='font-size:.58rem;font-weight:700;color:"+(allF?"#166534":"#92400e")+"'>"+pagati.length+"/"+tgt+"</div></button>";
     });
   }
 }
@@ -1703,7 +1776,7 @@ function esportaCSV(){
   var d=new Date();
   var dd=String(d.getDate()).padStart(2,"0");
   var mm=String(d.getMonth()+1).padStart(2,"0");
-  a.download="turnario_backup_"+d.getFullYear()+mm+dd+".csv";
+  a.download="turnario_backup_"+dd+mm+d.getFullYear()+".csv";
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast("✅ CSV esportato ("+( rows.length-1)+" voci)");
