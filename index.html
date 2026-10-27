@@ -165,7 +165,7 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
 .tr-pcount td{font-size:.68rem;font-weight:700;text-align:center;padding:2px 1px;border-top:2px solid #e2e8f0;}
 .tr-pcount .td-base-nome{font-size:.62rem;font-weight:600;color:var(--navy);}
 .tr-fondo td{text-align:center;padding:1px;border-top:2px solid #fde047;}
-.td-fondo-nome{background:#fef9c3!important;color:#854d0e!important;text-align:left!important;padding-left:7px!important;font-size:.62rem;font-weight:700;position:sticky;left:0;z-index:2;cursor:default;}
+.td-fondo-nome{background:#fed7aa!important;color:#9a3412!important;text-align:left!important;padding-left:7px!important;font-size:.62rem;font-weight:700;position:sticky;left:0;z-index:2;cursor:default;}
 .td-fondo-act{cursor:pointer;transition:filter .15s;}
 .td-fondo-act:hover{filter:brightness(.93);}
 .td-fondo-empty{background:#fffdf0;}
@@ -410,7 +410,8 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
   <h3>&#x1F4B0; Fondo cassa</h3>
   <div class="modal-sub" id="fondoSub"></div>
   <div id="fondoContatore" style="margin:8px 0"></div>
-  <div id="fondoList" style="max-height:360px;overflow-y:auto"></div>
+  <div id="fondoNote" style="margin:0 0 8px 0"></div>
+  <div id="fondoList" style="max-height:300px;overflow-y:auto"></div>
   <div class="mrow" style="margin-top:12px">
     <button class="mbtn mbtn-cancel" onclick="closeM('mFondo')">Chiudi</button>
   </div>
@@ -1190,24 +1191,54 @@ function addPersona(){
   var nome=document.getElementById("newNome").value.trim();
   var salto=parseInt(document.getElementById("newSalto").value)||0;
   var err=document.getElementById("persErr");
-  if(!grado){err.textContent="Inserisci la qualifica";err.style.display="block";return;}
   if(!nome){err.textContent="Inserisci il nome";err.style.display="block";return;}
   var nomeLower=nome.toLowerCase();
   var pdA=getPermDel();
   var hmA=getHideM(vY,vM);
   var allExisting=PERS_BASE.concat(getCuPers());
-  // Se esiste ma è nascosto nel mese corrente → ripristina automaticamente
+
+  // 1. Nascosto nel mese → ripristina (aggiorna qualifica se fornita)
   var hiddenM=allExisting.find(function(p){return (p.nome||"").toLowerCase()===nomeLower&&hmA.indexOf(p.id)>=0;});
   if(hiddenM){
+    if(grado&&hiddenM.id.indexOf("cu_")===0){
+      var cuH=getCuPers();var ciH=cuH.findIndex(function(x){return x.id===hiddenM.id;});
+      if(ciH>=0){cuH[ciH].grado=grado;saveCuPers(cuH);}
+    }
     saveHideM(vY,vM,hmA.filter(function(x){return x!==hiddenM.id;}));
     saveDeletedBase(getDeletedBase().filter(function(x){return x!==hiddenM.id;}));
     document.getElementById("newGrado").value="";document.getElementById("newNome").value="";
     err.style.display="none";renderPersList();renderAll();
-    showToast((hiddenM.grado||"")+" "+hiddenM.nome+" ripristinato per "+MESI[vM]+"!");return;
+    showToast((grado||hiddenM.grado||"")+" "+hiddenM.nome+" ripristinato per "+MESI[vM]+"!");return;
   }
-  // Blocca solo se attivo (non in permDel, non in hideM)
+
+  // 2. Eliminato definitivamente (permDel o solo in archivio) → ripristina
+  var pdPers=allExisting.find(function(p){return (p.nome||"").toLowerCase()===nomeLower&&pdA.indexOf(p.id)>=0;});
+  if(!pdPers){
+    var arcAll=getArchive();
+    pdPers=arcAll.find(function(p){return (p.nome||"").toLowerCase()===nomeLower;});
+  }
+  if(pdPers){
+    var gradoR=grado||pdPers.grado||"VVF";
+    savePermDel(pdA.filter(function(x){return x!==pdPers.id;}));
+    var isBase=PERS_BASE.find(function(x){return x.id===pdPers.id;});
+    if(!isBase){
+      var cuR=getCuPers();var ciR=cuR.findIndex(function(x){return x.id===pdPers.id;});
+      if(ciR>=0){cuR[ciR].grado=gradoR;saveCuPers(cuR);}
+      else{cuR.push({id:pdPers.id,nome:pdPers.nome,grado:gradoR,base:false,salto:pdPers.salto||salto});saveCuPers(cuR);}
+    } else if(grado){
+      LS.setItem("vvf_ov_"+pdPers.id,JSON.stringify({grado:grado}));
+    }
+    document.getElementById("newGrado").value="";document.getElementById("newNome").value="";
+    err.style.display="none";renderPersList();renderAll();
+    showToast(gradoR+" "+pdPers.nome+" ripristinato nell'organico!");return;
+  }
+
+  // 3. Già attivo → blocca
   var dup=allExisting.find(function(p){return (p.nome||"").toLowerCase()===nomeLower&&pdA.indexOf(p.id)<0&&hmA.indexOf(p.id)<0;});
   if(dup){err.textContent="Esiste già un personale con questo nome";err.style.display="block";return;}
+
+  // 4. Nuovo → qualifica obbligatoria
+  if(!grado){err.textContent="Inserisci la qualifica";err.style.display="block";return;}
   var cu=getCuPers();
   cu.push({id:"cu_"+Date.now(),nome:nome,grado:grado,base:false,salto:salto});
   saveCuPers(cu);
@@ -1518,9 +1549,11 @@ function renderTable(){
   var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(pers.length))||pers.length;
   var paidN=fondoPagati.length;
   var allPaidF=paidN>=fondoTarget&&fondoTarget>0;
-  var bgF=allPaidF?"#bbf7d0":"#fef9c3";
-  var cF=allPaidF?"#166534":"#92400e";
-  h+="<tr class=\"tr-fondo\"><td class=\"td-fondo-nome\"><button style='all:unset;cursor:pointer;font-size:.62rem;font-weight:700;color:#854d0e;padding:2px 7px;display:block;width:100%;box-sizing:border-box' onclick='openFondo("+vY+","+vM+")' title='Fondo cassa'>&#x1F4B0; Fondo cassa</button></td>";
+  var bgF=allPaidF?"#bbf7d0":"#fed7aa";
+  var cF=allPaidF?"#166534":"#9a3412";
+  var fondoNoteF=getFondoNote(vY,vM);
+  var fondoDotF=(fondoNoteF.quota||fondoNoteF.spese)?"<span style='display:inline-block;width:7px;height:7px;background:#e11d48;border-radius:50%;margin-left:4px;vertical-align:middle'></span>":"";
+  h+="<tr class=\"tr-fondo\"><td class=\"td-fondo-nome\"><button style='all:unset;cursor:pointer;font-size:.62rem;font-weight:700;color:#9a3412;padding:2px 7px;display:block;width:100%;box-sizing:border-box' onclick='openFondo("+vY+","+vM+")' title='Fondo cassa'>&#x1F4B0; Fondo cassa"+fondoDotF+"</button></td>";
   for(var g=1;g<=dim;g++){
     var isTodF=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
     var todSF=isTodF?"outline:2px solid #c0111f;outline-offset:-1px;":"";
@@ -1714,6 +1747,9 @@ function getFondoPagati(y,m){
   try{var a=JSON.parse(v);return Array.isArray(a)?a:[];}catch(e){return[];}
 }
 function saveFondoPagati(y,m,arr){LS.setItem("vvf_fondo_"+y+"_"+m,JSON.stringify(arr));}
+function getFondoNote(y,m){var v=LS.getItem("vvf_fondo_note_"+y+"_"+m);if(!v)return{quota:"",spese:""};try{return JSON.parse(v);}catch(e){return{quota:"",spese:""};}}
+function saveFondoNote(y,m,obj){LS.setItem("vvf_fondo_note_"+y+"_"+m,JSON.stringify(obj));}
+function _escH(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 
 var _fondoY,_fondoM;
 function openFondo(y,m){
@@ -1725,6 +1761,7 @@ function openFondo(y,m){
     document.getElementById("fondoSub").textContent=
       mesi[m]+" "+y+" · Giorno raccolta: "+fondoDay+" · Target: "+fondoTarget+" persone";
     renderFondoModal(y,m);
+    renderFondoNote(y,m);
     openM("mFondo");
   }catch(e){showToast("⚠️ Errore fondo: "+e.message,"#c0111f");}
 }
@@ -1787,7 +1824,7 @@ function toggleFondoPagato(pid){
     var tgt=parseInt(LS.getItem("vvf_fondo_target")||String(getPersonale().length))||getPersonale().length;
     var allF=pagati.length>=tgt&&tgt>0;
     cells.forEach(function(c){
-      c.innerHTML="<button style='all:unset;display:block;width:100%;cursor:pointer;text-align:center;background:"+(allF?"#bbf7d0":"#fef9c3")+";padding:1px 0' onclick='openFondo("+_fondoY+","+_fondoM+")'>"+
+      c.innerHTML="<button style='all:unset;display:block;width:100%;cursor:pointer;text-align:center;background:"+(allF?"#bbf7d0":"#fed7aa")+";padding:1px 0' onclick='openFondo("+_fondoY+","+_fondoM+")'>"+
         "<div style='font-size:.7rem'>&#x1F4B0;</div>"+
         "<div style='font-size:.58rem;font-weight:700;color:"+(allF?"#166534":"#92400e")+"'>"+pagati.length+"/"+tgt+"</div></button>";
     });
@@ -1815,6 +1852,39 @@ function fondoImpostaTarget(){
   renderTable();
 }
 function openFondoDay(){fondoImpostaDag();}
+function renderFondoNote(y,m){
+  var admin=isAdmin();
+  var note=getFondoNote(y,m);
+  var hasNote=!!(note.quota||note.spese);
+  var h="<div style='background:"+(hasNote?"#fff7ed":"#f8fafc")+";border:1px solid "+(hasNote?"#fb923c":"#e2e8f0")+";border-radius:8px;padding:8px 12px'>";
+  if(hasNote){
+    h+="<div style='font-size:.74rem;font-weight:700;color:#c2410c;margin-bottom:5px'>&#x1F4DD; Note raccolta</div>";
+    if(note.quota)h+="<div style='font-size:.76rem;margin-bottom:3px'><span style='color:#92400e;font-weight:600'>&#x1F3AF; Quota: </span>"+_escH(note.quota)+"</div>";
+    if(note.spese)h+="<div style='font-size:.76rem'><span style='color:#92400e;font-weight:600'>&#x1F4B8; Spese: </span>"+_escH(note.spese)+"</div>";
+  }else{
+    h+="<div style='font-size:.72rem;color:#94a3b8'>Nessuna nota per questo mese</div>";
+  }
+  if(admin){
+    h+="<div style='margin-top:7px'><button class='pa-btn' style='font-size:.68rem;width:100%' onclick='editFondoNote()'>&#x270F;&#xFE0F; "+(hasNote?"Modifica note":"Aggiungi note")+"</button></div>";
+  }
+  h+="</div>";
+  var el=document.getElementById("fondoNote");
+  if(el)el.innerHTML=h;
+}
+function editFondoNote(){
+  var note=getFondoNote(_fondoY,_fondoM);
+  var q=window.prompt("Quota da raccogliere (es. €5 a testa):",note.quota||"");
+  if(q===null)return;
+  var s=window.prompt("Spese / Cosa è stato acquistato con il fondo:",note.spese||"");
+  if(s===null)return;
+  saveFondoNote(_fondoY,_fondoM,{quota:q.trim(),spese:s.trim()});
+  renderFondoNote(_fondoY,_fondoM);
+  // aggiorna pallino rosso nella cella tabella
+  var nomeCells=document.querySelectorAll(".td-fondo-nome button");
+  var dot=(q.trim()||s.trim())?"<span style='display:inline-block;width:7px;height:7px;background:#e11d48;border-radius:50%;margin-left:4px;vertical-align:middle'></span>":"";
+  nomeCells.forEach(function(b){b.innerHTML="&#x1F4B0; Fondo cassa"+dot;});
+  showToast("&#x1F4DD; Note fondo salvate");
+}
 // ===== FINE FONDO CASSA =====
 
 function esportaCSV(){
