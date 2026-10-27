@@ -1547,13 +1547,14 @@ function renderTable(){
   var fondoDay=parseInt(LS.getItem("vvf_fondo_day")||"10");
   var fondoPagati=getFondoPagati(vY,vM);
   var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(pers.length))||pers.length;
-  var paidN=fondoPagati.length;
+  var _persIdsF=pers.map(function(p){return p.id;});
+  var paidN=fondoPagati.filter(function(id){return _persIdsF.indexOf(id)>=0;}).length;
   var allPaidF=paidN>=fondoTarget&&fondoTarget>0;
   var bgF=allPaidF?"#bbf7d0":"#fed7aa";
   var cF=allPaidF?"#166534":"#9a3412";
   var fondoNoteF=getFondoNote(vY,vM);
   var fondoDotF=(fondoNoteF.quota||fondoNoteF.spese)?"<span style='display:inline-block;width:7px;height:7px;background:#e11d48;border-radius:50%;margin-left:4px;vertical-align:middle'></span>":"";
-  h+="<tr class=\"tr-fondo\"><td class=\"td-fondo-nome\"><button style='all:unset;cursor:pointer;font-size:.62rem;font-weight:700;color:#9a3412;padding:2px 7px;display:block;width:100%;box-sizing:border-box' onclick='openFondo("+vY+","+vM+")' title='Fondo cassa'>&#x1F4B0; Fondo cassa"+fondoDotF+"</button></td>";
+  h+="<tr class=\"tr-fondo\"><td class=\"td-fondo-nome\" style=\"background:"+bgF+"!important;color:"+cF+"!important\"><button style='all:unset;cursor:pointer;font-size:.62rem;font-weight:700;color:"+cF+";padding:2px 7px;display:block;width:100%;box-sizing:border-box' onclick='openFondo("+vY+","+vM+")' title='Fondo cassa'>&#x1F4B0; Fondo cassa"+fondoDotF+"</button></td>";
   for(var g=1;g<=dim;g++){
     var isTodF=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
     var todSF=isTodF?"outline:2px solid #c0111f;outline-offset:-1px;":"";
@@ -1770,7 +1771,8 @@ function renderFondoModal(y,m){
   var pers=getPersonale();
   var pagati=getFondoPagati(y,m);
   var target=parseInt(LS.getItem("vvf_fondo_target")||String(pers.length))||pers.length;
-  var nPaid=pagati.length;
+  var _persIds=pers.map(function(p){return p.id;});
+  var nPaid=pagati.filter(function(id){return _persIds.indexOf(id)>=0;}).length;
   var allDone=nPaid>=target&&target>0;
   var perc=target>0?Math.min(Math.round(nPaid/target*100),100):0;
   // Barra avanzamento
@@ -1821,12 +1823,25 @@ function toggleFondoPagato(pid){
   // aggiorna la cella nella tabella senza rimontare tutta la riga
   var cells=document.querySelectorAll(".td-fondo-act");
   if(cells.length){
-    var tgt=parseInt(LS.getItem("vvf_fondo_target")||String(getPersonale().length))||getPersonale().length;
-    var allF=pagati.length>=tgt&&tgt>0;
+    var persT=getPersonale();
+    var tgt=parseInt(LS.getItem("vvf_fondo_target")||String(persT.length))||persT.length;
+    var persIdsT=persT.map(function(p){return p.id;});
+    var paidFiltered=pagati.filter(function(id){return persIdsT.indexOf(id)>=0;}).length;
+    var allF=paidFiltered>=tgt&&tgt>0;
+    var bgTog=allF?"#bbf7d0":"#fed7aa";
+    var cTog=allF?"#166534":"#9a3412";
     cells.forEach(function(c){
-      c.innerHTML="<button style='all:unset;display:block;width:100%;cursor:pointer;text-align:center;background:"+(allF?"#bbf7d0":"#fed7aa")+";padding:1px 0' onclick='openFondo("+_fondoY+","+_fondoM+")'>"+
+      c.innerHTML="<button style='all:unset;display:block;width:100%;cursor:pointer;text-align:center;background:"+bgTog+";padding:1px 0' onclick='openFondo("+_fondoY+","+_fondoM+")'>"+
         "<div style='font-size:.7rem'>&#x1F4B0;</div>"+
-        "<div style='font-size:.58rem;font-weight:700;color:"+(allF?"#166534":"#92400e")+"'>"+pagati.length+"/"+tgt+"</div></button>";
+        "<div style='font-size:.58rem;font-weight:700;color:"+cTog+"'>"+paidFiltered+"/"+tgt+"</div></button>";
+    });
+    // aggiorna anche la cella "Fondo cassa" (nome)
+    var nomeCT=document.querySelectorAll(".td-fondo-nome");
+    nomeCT.forEach(function(c){
+      c.style.setProperty("background",bgTog,"important");
+      c.style.setProperty("color",cTog,"important");
+      var btn=c.querySelector("button");
+      if(btn)btn.style.color=cTog;
     });
   }
 }
