@@ -1544,7 +1544,7 @@ function renderTable(){
   }
   h+="<td class=\"tot-td\"></td></tr>";
   // RIGA FONDO CASSA
-  var fondoDay=parseInt(LS.getItem("vvf_fondo_day")||"10");
+  var fondoDay=getFondoDay(vY,vM);
   var fondoPagati=getFondoPagati(vY,vM);
   var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(pers.length))||pers.length;
   var _persIdsF=pers.map(function(p){return p.id;});
@@ -1750,6 +1750,8 @@ function getFondoPagati(y,m){
 function saveFondoPagati(y,m,arr){LS.setItem("vvf_fondo_"+y+"_"+m,JSON.stringify(arr));}
 function getFondoNote(y,m){var v=LS.getItem("vvf_fondo_note_"+y+"_"+m);if(!v)return{quota:"",spese:""};try{return JSON.parse(v);}catch(e){return{quota:"",spese:""};}}
 function saveFondoNote(y,m,obj){LS.setItem("vvf_fondo_note_"+y+"_"+m,JSON.stringify(obj));}
+function getFondoDay(y,m){return parseInt(LS.getItem("vvf_fondo_day_"+y+"_"+m)||LS.getItem("vvf_fondo_day")||"10");}
+function saveFondoDayM(y,m,n){LS.setItem("vvf_fondo_day_"+y+"_"+m,String(n));}
 function _escH(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 
 var _fondoY,_fondoM;
@@ -1757,7 +1759,7 @@ function openFondo(y,m){
   try{
     _fondoY=y;_fondoM=m;
     var mesi=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
-    var fondoDay=parseInt(LS.getItem("vvf_fondo_day")||"10");
+    var fondoDay=getFondoDay(y,m);
     var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(getPersonale().length))||getPersonale().length;
     document.getElementById("fondoSub").textContent=
       mesi[m]+" "+y+" · Giorno raccolta: "+fondoDay+" · Target: "+fondoTarget+" persone";
@@ -1846,13 +1848,13 @@ function toggleFondoPagato(pid){
   }
 }
 function fondoImpostaDag(){
-  var cur=LS.getItem("vvf_fondo_day")||"10";
+  var cur=String(getFondoDay(_fondoY,_fondoM));
   var val=window.prompt("Giorno del mese per la raccolta fondo cassa (1–28):",cur);
   if(val===null)return;
   var n=parseInt(val);
   if(isNaN(n)||n<1||n>28){showToast("⚠️ Inserisci un numero tra 1 e 28","#c0111f");return;}
-  LS.setItem("vvf_fondo_day",String(n));
-  showToast("✅ Giorno raccolta impostato al "+n);
+  saveFondoDayM(_fondoY,_fondoM,n);
+  showToast("✅ Giorno raccolta impostato al "+n+" per questo mese");
   closeM("mFondo");renderTable();
 }
 function fondoImpostaTarget(){
