@@ -1750,8 +1750,47 @@ function getFondoPagati(y,m){
 function saveFondoPagati(y,m,arr){LS.setItem("vvf_fondo_"+y+"_"+m,JSON.stringify(arr));}
 function getFondoNote(y,m){var v=LS.getItem("vvf_fondo_note_"+y+"_"+m);if(!v)return{quota:"",spese:""};try{return JSON.parse(v);}catch(e){return{quota:"",spese:""};}}
 function saveFondoNote(y,m,obj){LS.setItem("vvf_fondo_note_"+y+"_"+m,JSON.stringify(obj));}
-function getFondoDay(y,m){return parseInt(LS.getItem("vvf_fondo_day_"+y+"_"+m)||LS.getItem("vvf_fondo_day")||"10");}
-function saveFondoDayM(y,m,n){LS.setItem("vvf_fondo_day_"+y+"_"+m,String(n));}
+function computeBestFondoDay(y,m){
+  // Conta presenti (P/PP) per ogni giorno del mese
+  var pers=getPersonale();
+  var dim=new Date(y,m+1,0).getDate();
+  var counts=[];
+  for(var g=1;g<=dim;g++){
+    var cnt=0;
+    for(var pi=0;pi<pers.length;pi++){
+      var sv=LS.getItem("vvf_"+pers[pi].id+"_"+y+"_"+m+"_"+g);
+      if(sv==="P"||sv==="PP")cnt++;
+    }
+    counts.push(cnt); // counts[g-1] = presenti il giorno g
+  }
+  // Distanza minima: giorno >= giorno fondo del mese precedente
+  // (distanza calendaria = dimPrev - prevDay + g >= dimPrev → g >= prevDay)
+  var prevY=m===0?y-1:y;
+  var prevM=m===0?11:m-1;
+  var prevStored=LS.getItem("vvf_fondo_day_"+prevY+"_"+prevM);
+  var minDay=prevStored?Math.min(parseInt(prevStored)||1,dim):1;
+  // Cerca il giorno con più presenti >= minDay
+  var best=-1,bestCnt=-1;
+  for(var g2=minDay-1;g2<dim;g2++){if(counts[g2]>bestCnt){bestCnt=counts[g2];best=g2+1;}}
+  // Fallback: se nessun giorno >= minDay ha presenti, rilassa il vincolo
+  if(best<0||bestCnt<0){
+    for(var g3=0;g3<minDay-1;g3++){if(counts[g3]>bestCnt){bestCnt=counts[g3];best=g3+1;}}
+  }
+  return best>0?best:(minDay<=dim?minDay:10);
+}
+function getFondoDay(y,m){
+  if(LS.getItem("vvf_fondo_day_lock_"+y+"_"+m)==="1"){
+    return parseInt(LS.getItem("vvf_fondo_day_"+y+"_"+m)||LS.getItem("vvf_fondo_day")||"10");
+  }
+  var d=computeBestFondoDay(y,m);
+  // Caching: salva il valore auto (senza lock) così il mese successivo può leggere la distanza
+  LS.setItem("vvf_fondo_day_"+y+"_"+m,String(d));
+  return d;
+}
+function saveFondoDayM(y,m,n){
+  LS.setItem("vvf_fondo_day_"+y+"_"+m,String(n));
+  LS.setItem("vvf_fondo_day_lock_"+y+"_"+m,"1");
+}
 function _escH(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 
 var _fondoY,_fondoM;
@@ -1760,9 +1799,10 @@ function openFondo(y,m){
     _fondoY=y;_fondoM=m;
     var mesi=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
     var fondoDay=getFondoDay(y,m);
+    var fondoLocked=LS.getItem("vvf_fondo_day_lock_"+y+"_"+m)==="1";
     var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(getPersonale().length))||getPersonale().length;
     document.getElementById("fondoSub").textContent=
-      mesi[m]+" "+y+" · Giorno raccolta: "+fondoDay+" · Target: "+fondoTarget+" persone";
+      mesi[m]+" "+y+" · Giorno raccolta: "+fondoDay+(fondoLocked?" (fisso)":" (auto)")+" · Target: "+fondoTarget+" persone";
     renderFondoModal(y,m);
     renderFondoNote(y,m);
     openM("mFondo");
@@ -1786,10 +1826,14 @@ function renderFondoModal(y,m){
     "<span style='font-size:.76rem;color:#64748b'>"+perc+"%</span></div>"+
     "<div style='background:#e2e8f0;border-radius:99px;height:7px;overflow:hidden'>"+
     "<div style='background:"+(allDone?"#16a34a":"#f59e0b")+";width:"+perc+"%;height:100%;border-radius:99px'></div></div>"+
-    (admin?"<div style='margin-top:8px;display:flex;gap:6px'>"+
-      "<button class='pa-btn' style='font-size:.68rem;flex:1' onclick='fondoImpostaDag()'>&#9881; Giorno raccolta</button>"+
-      "<button class='pa-btn' style='font-size:.68rem;flex:1' onclick='fondoImpostaTarget()'>&#9881; Target persone</button>"+
-    "</div>":"")+
+    (admin?(function(){
+      var lk=LS.getItem("vvf_fondo_day_lock_"+y+"_"+m)==="1";
+      return "<div style='margin-top:8px;display:flex;gap:6px;flex-wrap:wrap'>"+
+        "<button class='pa-btn' style='font-size:.68rem;flex:1' onclick='fondoImpostaDag()'>&#9881; Giorno "+(lk?"fisso":"(auto)")+"</button>"+
+        "<button class='pa-btn' style='font-size:.68rem;flex:1' onclick='fondoImpostaTarget()'>&#9881; Target persone</button>"+
+        (lk?"<button class='pa-btn' style='font-size:.68rem;width:100%;margin-top:4px;background:#e0f2fe;color:#0369a1' onclick='fondoRipristinaAuto()'>&#x21BA; Ripristina automatico</button>":"")+
+      "</div>";
+    })():"")+
     "</div>";
   document.getElementById("fondoContatore").innerHTML=cH;
   // Liste
@@ -1848,13 +1892,22 @@ function toggleFondoPagato(pid){
   }
 }
 function fondoImpostaDag(){
+  var isLk=LS.getItem("vvf_fondo_day_lock_"+_fondoY+"_"+_fondoM)==="1";
   var cur=String(getFondoDay(_fondoY,_fondoM));
-  var val=window.prompt("Giorno del mese per la raccolta fondo cassa (1–28):",cur);
+  var lbl=isLk?" (attualmente fisso)":" (attualmente automatico)";
+  var val=window.prompt("Giorno del mese per la raccolta fondo cassa (1–31)"+lbl+":",cur);
   if(val===null)return;
   var n=parseInt(val);
-  if(isNaN(n)||n<1||n>28){showToast("⚠️ Inserisci un numero tra 1 e 28","#c0111f");return;}
+  if(isNaN(n)||n<1||n>31){showToast("⚠️ Inserisci un numero tra 1 e 31","#c0111f");return;}
   saveFondoDayM(_fondoY,_fondoM,n);
-  showToast("✅ Giorno raccolta impostato al "+n+" per questo mese");
+  showToast("✅ Giorno "+n+" impostato (fisso per questo mese)");
+  closeM("mFondo");renderTable();
+}
+function fondoRipristinaAuto(){
+  LS.removeItem("vvf_fondo_day_lock_"+_fondoY+"_"+_fondoM);
+  LS.removeItem("vvf_fondo_day_"+_fondoY+"_"+_fondoM);
+  var newDay=computeBestFondoDay(_fondoY,_fondoM);
+  showToast("🔄 Giorno raccolta automatico: "+newDay);
   closeM("mFondo");renderTable();
 }
 function fondoImpostaTarget(){
