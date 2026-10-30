@@ -1410,6 +1410,11 @@ function addCodice(){
 // RENDER
 var vY=new Date().getFullYear(),vM=new Date().getMonth();
 function renderAll(){CODICI=getCodici();renderHeader();renderTable();renderCnt();renderCum();renderLegend();}
+var _scrolledOnce=false;
+function scrollToToday(){
+  var el=document.getElementById("td-today");
+  if(el){setTimeout(function(){el.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});},80);}
+}
 
 function renderHeader(){
   var today=new Date();
@@ -1455,7 +1460,8 @@ function renderTable(){
     var dotH=dn0?"<span class=\"day-note-dot\" title=\""+dn0.replace(/"/g,"&quot;").substring(0,60)+"\"></span>":"";
     var admCls=admin?" th-gg-adm":"";
     var admAtt=(admin||dn0)?" data-dcm=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(dn0?dn0.replace(/"/g,"&quot;").substring(0,60):"Aggiungi commento al giorno")+"\"":"";
-    h+="<th class=\"th-gg"+admCls+"\" style=\"position:relative;"+hdrBg+"\""+admAtt+">"+g+dotH+"</th>";
+    var todId=isTod?" id=\"td-today\"":"";
+    h+="<th"+todId+" class=\"th-gg"+admCls+"\" style=\"position:relative;"+hdrBg+"\""+admAtt+">"+g+dotH+"</th>";
   }
   h+="<th class=\"th-tot\" title=\"P = +1 &bull; PP = +2\">P</th></tr><tr><th class=\"th-dow2 th-dow\">GG</th>";
   for(var g=1;g<=dim;g++){
@@ -1724,7 +1730,7 @@ function autoFillMese(y,m){
 function isDecOrLater(y,m){return(y>2026||(y===2026&&m>=11));}
 function cambiaMese(d){vM+=d;if(vM<0){vM=11;vY--;}if(vM>11){vM=0;vY++;}if(isDecOrLater(vY,vM))autoFillMese(vY,vM);renderAll();}
 function cambiaAnno(d){vY+=d;if(isDecOrLater(vY,vM))autoFillMese(vY,vM);renderAll();}
-function goToday(){var t=new Date();vY=t.getFullYear();vM=t.getMonth();if(isDecOrLater(vY,vM))autoFillMese(vY,vM);renderAll();}
+function goToday(){var t=new Date();vY=t.getFullYear();vM=t.getMonth();if(isDecOrLater(vY,vM))autoFillMese(vY,vM);renderAll();scrollToToday();}
 function stampaPDF(){
   var inIframe=false;
   try{inIframe=(window.self!==window.top);}catch(e){inIframe=true;}
@@ -1943,10 +1949,24 @@ function renderFondoNote(y,m){
 }
 function editFondoNote(){
   var note=getFondoNote(_fondoY,_fondoM);
-  var q=window.prompt("Quota da raccogliere (es. €5 a testa):",note.quota||"");
-  if(q===null)return;
-  var s=window.prompt("Spese / Cosa è stato acquistato con il fondo:",note.spese||"");
-  if(s===null)return;
+  var el=document.getElementById("fondoNote");
+  if(!el)return;
+  el.innerHTML=
+    "<div style='background:#fff7ed;border:1px solid #fb923c;border-radius:8px;padding:10px 12px'>"+
+    "<div style='font-size:.74rem;font-weight:700;color:#c2410c;margin-bottom:8px'>&#x270F;&#xFE0F; Modifica note raccolta</div>"+
+    "<div style='font-size:.72rem;color:#92400e;font-weight:600;margin-bottom:3px'>&#x1F3AF; Quota da raccogliere:</div>"+
+    "<textarea id='fdNoteQ' rows='2' style='width:100%;box-sizing:border-box;border:1px solid #fb923c;border-radius:6px;padding:6px 8px;font-size:.82rem;font-family:inherit;resize:vertical;line-height:1.4;color:#1e293b'>"+_escH(note.quota||"")+"</textarea>"+
+    "<div style='font-size:.72rem;color:#92400e;font-weight:600;margin:8px 0 3px'>&#x1F4B8; Spese / Cosa acquistato:</div>"+
+    "<textarea id='fdNoteS' rows='3' style='width:100%;box-sizing:border-box;border:1px solid #fb923c;border-radius:6px;padding:6px 8px;font-size:.82rem;font-family:inherit;resize:vertical;line-height:1.4;color:#1e293b'>"+_escH(note.spese||"")+"</textarea>"+
+    "<div style='display:flex;gap:6px;margin-top:8px'>"+
+    "<button class='pa-btn' style='flex:1;background:#059669;color:#fff;font-size:.74rem' onclick='saveFondoNoteInline()'>&#x2713; Salva</button>"+
+    "<button class='pa-btn' style='flex:1;font-size:.74rem' onclick='renderFondoNote(_fondoY,_fondoM)'>&#x2715; Annulla</button>"+
+    "</div></div>";
+  setTimeout(function(){var t=document.getElementById("fdNoteQ");if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length);}},50);
+}
+function saveFondoNoteInline(){
+  var q=(document.getElementById("fdNoteQ")||{value:""}).value||"";
+  var s=(document.getElementById("fdNoteS")||{value:""}).value||"";
   saveFondoNote(_fondoY,_fondoM,{quota:q.trim(),spese:s.trim()});
   renderFondoNote(_fondoY,_fondoM);
   // aggiorna pallino rosso nella cella tabella
@@ -2046,6 +2066,7 @@ function showToast(msg,bg){
       CODICI=getCodici();
     }
     renderAll();
+    if(!_scrolledOnce){_scrolledOnce=true;scrollToToday();}
   });
 })();
 
