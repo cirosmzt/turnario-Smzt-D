@@ -1952,14 +1952,16 @@ function renderFondoNote(y,m){
   var pers=getPersonale();
   var persIds=pers.map(function(p){return p.id;});
   var nPagati=pagati.filter(function(id){return persIds.indexOf(id)>=0;}).length;
+  // Cassa precedente calcolata sempre, per tutti
+  var cpRaw=note.cassa_prec!==undefined?note.cassa_prec:computePrevResto(y,m);
+  var cpImp=parseFloat(cpRaw)||0;
   var isNew=note.quota_imp!==undefined&&note.quota_imp!=="";
   var isOld=!isNew&&(note.quota||note.spese);
-  var hasNote=isNew||isOld;
+  var hasNote=isNew||isOld||cpImp>0;
   var h="<div style='background:"+(hasNote?"#fff7ed":"#f8fafc")+";border:1px solid "+(hasNote?"#fb923c":"#e2e8f0")+";border-radius:8px;padding:8px 12px'>";
-  if(isNew){
-    var qImp=parseFloat(note.quota_imp)||0;
-    var sImp=parseFloat(note.spese_imp)||0;
-    var cpImp=parseFloat(note.cassa_prec)||0;
+  if(isNew||cpImp>0){
+    var qImp=isNew?(parseFloat(note.quota_imp)||0):0;
+    var sImp=isNew?(parseFloat(note.spese_imp)||0):0;
     var raccolto=qImp*nPagati;
     var totDisp=cpImp+raccolto;
     var resto=totDisp-sImp;
@@ -1967,19 +1969,21 @@ function renderFondoNote(y,m){
     if(cpImp>0){
       h+="<div style='font-size:.8rem;margin-bottom:3px'>&#x1F3E6; <span style='color:#92400e;font-weight:600'>Cassa precedente:</span> <strong style='color:#166534'>€"+cpImp.toFixed(2).replace(/\.00$/,"")+"</strong></div>";
     }
-    if(qImp>0){
+    if(isNew&&qImp>0){
       h+="<div style='font-size:.82rem;margin-bottom:"+(cpImp>0?"3":"5")+"px'>&#x1F4B6; <span style='color:#92400e;font-weight:600'>Raccolto:</span> €"+qImp+" × "+nPagati+" = <strong style='color:#166534'>€"+raccolto.toFixed(2).replace(/\.00$/,"")+"</strong></div>";
     }
     if(cpImp>0&&qImp>0){
       h+="<div style='font-size:.8rem;font-weight:700;margin-bottom:5px;padding:4px 8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px'>&#x2211; <span style='color:#374151'>Totale disponibile:</span> <span style='color:#166534'>€"+totDisp.toFixed(2).replace(/\.00$/,"")+"</span></div>";
     }
-    if(sImp>0||note.spese_desc){
+    if(isNew&&(sImp>0||note.spese_desc)){
       h+="<div style='font-size:.82rem;margin-bottom:"+(note.spese_desc?"2":"5")+"px'>&#x1F4B8; <span style='color:#92400e;font-weight:600'>Spese:</span> <strong style='color:#991b1b'>€"+sImp.toFixed(2).replace(/\.00$/,"")+"</strong></div>";
       if(note.spese_desc)h+="<div style='font-size:.76rem;color:#78350f;margin-bottom:5px;padding:3px 6px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 4px 4px 0'>"+_escH(note.spese_desc)+"</div>";
     }
-    if(qImp>0){
+    if(isNew&&qImp>0){
       var restoColor=resto>=0?"#166534":"#991b1b";
       h+="<div style='font-size:.86rem;font-weight:700;margin-top:4px;padding:5px 8px;background:"+(resto>=0?"#dcfce7":"#fee2e2")+";border-radius:6px'>&#x1F4B0; <span style='color:#92400e'>Resto cassa:</span> <span style='color:"+restoColor+"'>€"+Math.abs(resto).toFixed(2).replace(/\.00$/,"")+(resto<0?" &#x26A0;&#xFE0F; negativo!":"")+"</span></div>";
+    } else if(cpImp>0&&!isNew){
+      h+="<div style='font-size:.76rem;color:#78350f;margin-top:4px;font-style:italic'>Nessuna quota impostata per questo mese</div>";
     }
   }else if(isOld){
     h+="<div style='font-size:.74rem;font-weight:700;color:#c2410c;margin-bottom:5px'>&#x1F4DD; Note raccolta</div>";
