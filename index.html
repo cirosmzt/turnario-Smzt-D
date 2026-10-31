@@ -1559,7 +1559,7 @@ function renderTable(){
   var bgF=allPaidF?"#bbf7d0":"#fed7aa";
   var cF=allPaidF?"#166534":"#9a3412";
   var fondoNoteF=getFondoNote(vY,vM);
-  var fondoDotF=(fondoNoteF.quota||fondoNoteF.spese)?"<span style='display:inline-block;width:7px;height:7px;background:#e11d48;border-radius:50%;margin-left:4px;vertical-align:middle'></span>":"";
+  var fondoDotF=(fondoNoteF.quota_imp||fondoNoteF.spese_imp||fondoNoteF.spese_desc||fondoNoteF.quota||fondoNoteF.spese)?"<span style='display:inline-block;width:7px;height:7px;background:#e11d48;border-radius:50%;margin-left:4px;vertical-align:middle'></span>":"";
   h+="<tr class=\"tr-fondo\"><td class=\"td-fondo-nome\" style=\"background:"+bgF+"!important;color:"+cF+"!important\"><button style='all:unset;cursor:pointer;font-size:.62rem;font-weight:700;color:"+cF+";padding:2px 7px;display:block;width:100%;box-sizing:border-box' onclick='openFondo("+vY+","+vM+")' title='Fondo cassa'>&#x1F4B0; Fondo cassa"+fondoDotF+"</button></td>";
   for(var g=1;g<=dim;g++){
     var isTodF=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
@@ -1931,9 +1931,32 @@ function openFondoDay(){fondoImpostaDag();}
 function renderFondoNote(y,m){
   var admin=isAdmin();
   var note=getFondoNote(y,m);
-  var hasNote=!!(note.quota||note.spese);
+  var pagati=getFondoPagati(y,m);
+  var pers=getPersonale();
+  var persIds=pers.map(function(p){return p.id;});
+  var nPagati=pagati.filter(function(id){return persIds.indexOf(id)>=0;}).length;
+  var isNew=note.quota_imp!==undefined&&note.quota_imp!=="";
+  var isOld=!isNew&&(note.quota||note.spese);
+  var hasNote=isNew||isOld;
   var h="<div style='background:"+(hasNote?"#fff7ed":"#f8fafc")+";border:1px solid "+(hasNote?"#fb923c":"#e2e8f0")+";border-radius:8px;padding:8px 12px'>";
-  if(hasNote){
+  if(isNew){
+    var qImp=parseFloat(note.quota_imp)||0;
+    var sImp=parseFloat(note.spese_imp)||0;
+    var raccolto=qImp*nPagati;
+    var resto=raccolto-sImp;
+    h+="<div style='font-size:.74rem;font-weight:700;color:#c2410c;margin-bottom:6px'>&#x1F4CB; Riepilogo raccolta</div>";
+    if(qImp>0){
+      h+="<div style='font-size:.82rem;margin-bottom:5px'>&#x1F4B6; <span style='color:#92400e;font-weight:600'>Raccolto:</span> €"+qImp+" × "+nPagati+" persone = <strong style='color:#166534;font-size:.88rem'>€"+raccolto.toFixed(2).replace(/\.00$/,"")+"</strong></div>";
+    }
+    if(sImp>0||note.spese_desc){
+      h+="<div style='font-size:.82rem;margin-bottom:"+(note.spese_desc?"2":"5")+"px'>&#x1F4B8; <span style='color:#92400e;font-weight:600'>Spese:</span> <strong style='color:#991b1b'>€"+sImp.toFixed(2).replace(/\.00$/,"")+"</strong></div>";
+      if(note.spese_desc)h+="<div style='font-size:.76rem;color:#78350f;margin-bottom:5px;padding:3px 6px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 4px 4px 0'>"+_escH(note.spese_desc)+"</div>";
+    }
+    if(qImp>0&&sImp>0){
+      var restoColor=resto>=0?"#166534":"#991b1b";
+      h+="<div style='font-size:.86rem;font-weight:700;margin-top:4px;padding:5px 8px;background:"+(resto>=0?"#dcfce7":"#fee2e2")+";border-radius:6px'>&#x1F4B0; <span style='color:#92400e'>Resto cassa:</span> <span style='color:"+restoColor+"'>€"+Math.abs(resto).toFixed(2).replace(/\.00$/,"")+(resto<0?" &#x26A0;&#xFE0F; negativo!":"")+"</span></div>";
+    }
+  }else if(isOld){
     h+="<div style='font-size:.74rem;font-weight:700;color:#c2410c;margin-bottom:5px'>&#x1F4DD; Note raccolta</div>";
     if(note.quota)h+="<div style='font-size:.76rem;margin-bottom:3px'><span style='color:#92400e;font-weight:600'>&#x1F3AF; Quota: </span>"+_escH(note.quota)+"</div>";
     if(note.spese)h+="<div style='font-size:.76rem'><span style='color:#92400e;font-weight:600'>&#x1F4B8; Spese: </span>"+_escH(note.spese)+"</div>";
@@ -1951,27 +1974,39 @@ function editFondoNote(){
   var note=getFondoNote(_fondoY,_fondoM);
   var el=document.getElementById("fondoNote");
   if(!el)return;
+  var q=note.quota_imp||"";
+  var si=note.spese_imp||"";
+  var sd=note.spese_desc||(note.quota_imp===undefined?(note.spese||""):"");
   el.innerHTML=
     "<div style='background:#fff7ed;border:1px solid #fb923c;border-radius:8px;padding:10px 12px'>"+
     "<div style='font-size:.74rem;font-weight:700;color:#c2410c;margin-bottom:8px'>&#x270F;&#xFE0F; Modifica note raccolta</div>"+
-    "<div style='font-size:.72rem;color:#92400e;font-weight:600;margin-bottom:3px'>&#x1F3AF; Quota da raccogliere:</div>"+
-    "<textarea id='fdNoteQ' rows='2' style='width:100%;box-sizing:border-box;border:1px solid #fb923c;border-radius:6px;padding:6px 8px;font-size:.82rem;font-family:inherit;resize:vertical;line-height:1.4;color:#1e293b'>"+_escH(note.quota||"")+"</textarea>"+
-    "<div style='font-size:.72rem;color:#92400e;font-weight:600;margin:8px 0 3px'>&#x1F4B8; Spese / Cosa acquistato:</div>"+
-    "<textarea id='fdNoteS' rows='3' style='width:100%;box-sizing:border-box;border:1px solid #fb923c;border-radius:6px;padding:6px 8px;font-size:.82rem;font-family:inherit;resize:vertical;line-height:1.4;color:#1e293b'>"+_escH(note.spese||"")+"</textarea>"+
+    "<div style='display:flex;gap:8px;margin-bottom:8px'>"+
+      "<div style='flex:1'>"+
+        "<div style='font-size:.72rem;color:#92400e;font-weight:600;margin-bottom:3px'>&#x1F4B6; Quota per persona (€)</div>"+
+        "<input id='fdNoteQ' type='number' min='0' step='0.5' placeholder='es. 5' value='"+_escH(q)+"' style='width:100%;box-sizing:border-box;border:1px solid #fb923c;border-radius:6px;padding:7px 8px;font-size:.92rem;font-family:inherit;color:#1e293b'>"+
+      "</div>"+
+      "<div style='flex:1'>"+
+        "<div style='font-size:.72rem;color:#92400e;font-weight:600;margin-bottom:3px'>&#x1F4B8; Importo spese (€)</div>"+
+        "<input id='fdNoteS' type='number' min='0' step='0.5' placeholder='es. 21' value='"+_escH(si)+"' style='width:100%;box-sizing:border-box;border:1px solid #fb923c;border-radius:6px;padding:7px 8px;font-size:.92rem;font-family:inherit;color:#1e293b'>"+
+      "</div>"+
+    "</div>"+
+    "<div style='font-size:.72rem;color:#92400e;font-weight:600;margin-bottom:3px'>&#x1F4CB; Descrizione spese (facoltativo)</div>"+
+    "<textarea id='fdNoteD' rows='3' placeholder='es. caffè 16 + carta forno 5...' style='width:100%;box-sizing:border-box;border:1px solid #fb923c;border-radius:6px;padding:6px 8px;font-size:.8rem;font-family:inherit;resize:vertical;line-height:1.4;color:#1e293b'>"+_escH(sd)+"</textarea>"+
     "<div style='display:flex;gap:6px;margin-top:8px'>"+
     "<button class='pa-btn' style='flex:1;background:#059669;color:#fff;font-size:.74rem' onclick='saveFondoNoteInline()'>&#x2713; Salva</button>"+
     "<button class='pa-btn' style='flex:1;font-size:.74rem' onclick='renderFondoNote(_fondoY,_fondoM)'>&#x2715; Annulla</button>"+
     "</div></div>";
-  setTimeout(function(){var t=document.getElementById("fdNoteQ");if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length);}},50);
+  setTimeout(function(){var t=document.getElementById("fdNoteQ");if(t)t.focus();},50);
 }
 function saveFondoNoteInline(){
   var q=(document.getElementById("fdNoteQ")||{value:""}).value||"";
-  var s=(document.getElementById("fdNoteS")||{value:""}).value||"";
-  saveFondoNote(_fondoY,_fondoM,{quota:q.trim(),spese:s.trim()});
+  var si=(document.getElementById("fdNoteS")||{value:""}).value||"";
+  var sd=(document.getElementById("fdNoteD")||{value:""}).value||"";
+  saveFondoNote(_fondoY,_fondoM,{quota_imp:q.trim(),spese_imp:si.trim(),spese_desc:sd.trim()});
   renderFondoNote(_fondoY,_fondoM);
   // aggiorna pallino rosso nella cella tabella
   var nomeCells=document.querySelectorAll(".td-fondo-nome button");
-  var dot=(q.trim()||s.trim())?"<span style='display:inline-block;width:7px;height:7px;background:#e11d48;border-radius:50%;margin-left:4px;vertical-align:middle'></span>":"";
+  var dot=(q.trim()||si.trim()||sd.trim())?"<span style='display:inline-block;width:7px;height:7px;background:#e11d48;border-radius:50%;margin-left:4px;vertical-align:middle'></span>":"";
   nomeCells.forEach(function(b){b.innerHTML="&#x1F4B0; Fondo cassa"+dot;});
   showToast("&#x1F4DD; Note fondo salvate");
 }
