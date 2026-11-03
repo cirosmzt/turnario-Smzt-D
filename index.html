@@ -251,7 +251,7 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
     <textarea id="cellNota" placeholder="es. Intervento subacqueo 2h extra..." style="width:100%;padding:8px 10px;border:2px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit;resize:vertical;min-height:58px;box-sizing:border-box;margin-top:2px"></textarea>
   </div>
   <div class="mrow">
-    <button class="mbtn mbtn-del" onclick="clearCell()">&#x2715; Cancella</button>
+    <button class="mbtn mbtn-del" id="btnRimuoviCella" onclick="clearCell()" style="display:none">&#x1F5D1; Rimuovi</button>
     <button class="mbtn mbtn-cancel" onclick="closeEdit()">Annulla</button>
     <button class="mbtn mbtn-ok" onclick="saveCell()">&#x2713; Salva</button>
   </div>
@@ -886,6 +886,8 @@ function openEdit(pid,y,m,d,cur){
   });
   if(cur&&!CODICI[cur])document.getElementById("customCode").value=cur;
   var ne=document.getElementById("cellNota");if(ne)ne.value=getNota(pid,y,m,d);
+  var btnRim=document.getElementById("btnRimuoviCella");
+  if(btnRim)btnRim.style.display=cur?"":"none";
   openM("mEdit");
 }
 function saveCell(){
