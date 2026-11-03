@@ -161,6 +161,9 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
 }
 .th-gg-adm{cursor:pointer;position:relative;}
 .th-gg-adm:hover{outline:2px solid #f59e0b;outline-offset:-2px;}
+@keyframes notaBlink{0%,100%{box-shadow:none;transform:scale(1);}40%,60%{box-shadow:0 0 0 4px #f97316,0 0 12px #f9731680;transform:scale(1.15);}}
+.nota-blink{animation:notaBlink .65s ease-in-out 9!important;border-radius:4px!important;position:relative;z-index:4;}
+#alertBanner{position:fixed;top:54px;left:0;right:0;z-index:9500;background:linear-gradient(90deg,#ea580c,#f97316);color:#fff;padding:9px 14px;font-size:.78rem;display:flex;align-items:center;gap:10px;box-shadow:0 3px 10px rgba(0,0,0,.25);}
 .day-note-dot{position:absolute;top:2px;right:2px;width:7px;height:7px;background:#c0111f;border-radius:50%;display:inline-block;border:1.5px solid rgba(255,255,255,.7);}
 .tr-pcount td{font-size:.68rem;font-weight:700;text-align:center;padding:2px 1px;border-top:2px solid #e2e8f0;}
 .tr-pcount .td-base-nome{font-size:.62rem;font-weight:600;color:var(--navy);}
@@ -890,10 +893,63 @@ function saveCell(){
   var val=custom||mSel;
   var ne=document.getElementById("cellNota");
   var nota=ne?ne.value.trim():"";
-  if(mPid&&val){setS(mPid,mY,mM,mD,val);setNota(mPid,mY,mM,mD,nota);closeEdit();renderAll();}else closeEdit();
+  if(mPid&&val){setS(mPid,mY,mM,mD,val);setNota(mPid,mY,mM,mD,nota);if(nota)setAlertNote(mPid,mY,mM,mD,nota);closeEdit();renderAll();}else closeEdit();
 }
 function clearCell(){if(mPid){setS(mPid,mY,mM,mD,"");setNota(mPid,mY,mM,mD,"");closeEdit();renderAll();}}
 function closeEdit(){closeM("mEdit");mPid=null;}
+
+// ─── NOTA ALERT SYSTEM ───────────────────────────────────────────────
+function setAlertNote(pid,y,m,g,nota){
+  var ts=Date.now();
+  LS.setItem("vvf_nota_alert",JSON.stringify({pid:pid,y:y,m:m,g:g,ts:ts,txt:(nota||"").substring(0,80)}));
+  try{localStorage.setItem("lastAlertTs",String(ts));}catch(e){}  // chi salva non vede il blink
+}
+function getAlertNote(){
+  var raw=LS.getItem("vvf_nota_alert");
+  if(!raw)return null;
+  try{return JSON.parse(raw);}catch(e){return null;}
+}
+function applyAlertBlink(){
+  var al=getAlertNote();
+  if(!al||!al.ts)return;
+  var lastSeen=0;try{lastSeen=parseInt(localStorage.getItem("lastAlertTs")||"0");}catch(e){}
+  if(al.ts<=lastSeen)return;
+  if(al.y===vY&&al.m===vM){
+    var btn=document.querySelector('.cell-btn[data-pid="'+al.pid+'"][data-d="'+al.g+'"]');
+    if(btn){
+      btn.classList.add("nota-blink");
+      setTimeout(function(){btn.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});},120);
+      setTimeout(function(){
+        btn.classList.remove("nota-blink");
+        try{localStorage.setItem("lastAlertTs",String(al.ts));}catch(e){}
+      },6500);
+    }
+  }else{
+    showAlertBanner(al);
+  }
+}
+function showAlertBanner(al){
+  var ex=document.getElementById("alertBanner");if(ex)ex.remove();
+  var pers=getPersonale();var p=pers.find(function(x){return x.id===al.pid;});
+  var nome=p?(p.grado+" "+p.nome):al.pid;
+  var d=document.createElement("div");d.id="alertBanner";
+  d.innerHTML="<span style='flex:1;cursor:pointer' onclick='goAlertNote()'>"
+    +"&#x1F4DD; <strong>Nuova nota</strong>: "+_escH(nome)+" — "+al.g+" "+MESI[al.m]+" "+al.y
+    +(al.txt?"<span style='opacity:.85'> — "+_escH(al.txt)+"</span>":"")
+    +"<span style='font-size:.68rem;margin-left:6px;opacity:.75'>(tocca per vedere)</span></span>"
+    +"<button style='background:rgba(255,255,255,.25);border:none;color:#fff;border-radius:50%;width:26px;height:26px;font-size:.95rem;cursor:pointer;flex-shrink:0;line-height:1' onclick='dismissAlertBanner()'>&#x2715;</button>";
+  document.body.appendChild(d);
+}
+function goAlertNote(){
+  var al=getAlertNote();if(!al)return;
+  vY=al.y;vM=al.m;renderAll();dismissAlertBanner();
+  setTimeout(applyAlertBlink,200);
+}
+function dismissAlertBanner(){
+  var al=getAlertNote();
+  if(al&&al.ts){try{localStorage.setItem("lastAlertTs",String(al.ts));}catch(e){}}
+  var b=document.getElementById("alertBanner");if(b)b.remove();
+}
 
 // TURNO BASE OVERRIDE (D# days)
 var tovY=null,tovM=null,tovD=null,tovTurno=null,tovTipo=null;
@@ -2137,6 +2193,7 @@ function showToast(msg,bg){
     }
     renderAll();
     if(!_scrolledOnce){_scrolledOnce=true;scrollToToday();}
+    setTimeout(applyAlertBlink,350);
   });
 })();
 
