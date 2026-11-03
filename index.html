@@ -899,55 +899,109 @@ function clearCell(){if(mPid){setS(mPid,mY,mM,mD,"");setNota(mPid,mY,mM,mD,"");c
 function closeEdit(){closeM("mEdit");mPid=null;}
 
 // ─── NOTA ALERT SYSTEM ───────────────────────────────────────────────
+// Ogni nota ha chiave propria → nessuna sovrascrittura, più note = più alert
+var _alertDebounce=null;
+var _alertMaxTs=0;
+
 function setAlertNote(pid,y,m,g,nota){
   var ts=Date.now();
-  LS.setItem("vvf_nota_alert",JSON.stringify({pid:pid,y:y,m:m,g:g,ts:ts,txt:(nota||"").substring(0,80)}));
-  try{localStorage.setItem("lastAlertTs",String(ts));}catch(e){}  // chi salva non vede il blink
+  // chiave unica per ogni cella: non sovrascrive note precedenti
+  LS.setItem("vvf_notal_"+pid+"_"+y+"_"+m+"_"+g,
+    JSON.stringify({pid:pid,y:y,m:m,g:g,ts:ts,txt:(nota||"").substring(0,80)}));
+  // chi salva non vede il suo stesso blink
+  try{localStorage.setItem("lastAlertTs",String(ts));}catch(e){}
 }
-function getAlertNote(){
-  var raw=LS.getItem("vvf_nota_alert");
-  if(!raw)return null;
-  try{return JSON.parse(raw);}catch(e){return null;}
+
+function getAllAlerts(){
+  // Raccoglie tutte le vvf_notal_* presenti in fbCache (ultimi 30 gg)
+  var cutoff=Date.now()-30*24*3600*1000;
+  var list=[];
+  Object.keys(fbCache).forEach(function(k){
+    if(k.indexOf("vvf_notal_")!==0)return;
+    var raw=fbCache[k];
+    var a;try{a=typeof raw==="object"?raw:JSON.parse(raw);}catch(e){return;}
+    if(!a||!a.ts||a.ts<cutoff)return;
+    list.push(a);
+  });
+  list.sort(function(a,b){return a.ts-b.ts;});
+  return list;
 }
+
 function applyAlertBlink(){
-  var al=getAlertNote();
-  if(!al||!al.ts)return;
-  var lastSeen=0;try{lastSeen=parseInt(localStorage.getItem("lastAlertTs")||"0");}catch(e){}
-  if(al.ts<=lastSeen)return;
-  if(al.y===vY&&al.m===vM){
-    var btn=document.querySelector('.cell-btn[data-pid="'+al.pid+'"][data-d="'+al.g+'"]');
-    if(btn){
-      btn.classList.add("nota-blink");
-      setTimeout(function(){btn.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});},120);
-      setTimeout(function(){
-        btn.classList.remove("nota-blink");
-        try{localStorage.setItem("lastAlertTs",String(al.ts));}catch(e){}
-      },6500);
-    }
-  }else{
-    showAlertBanner(al);
-  }
+  // Debounce: evita chiamate multiple ravvicinate (es. 3 note salvate in rapida successione)
+  if(_alertDebounce)clearTimeout(_alertDebounce);
+  _alertDebounce=setTimeout(_doAlertBlink,400);
 }
-function showAlertBanner(al){
+
+function _doAlertBlink(){
+  var all=getAllAlerts();
+  if(!all.length)return;
+  var lastSeen=0;try{lastSeen=parseInt(localStorage.getItem("lastAlertTs")||"0");}catch(e){}
+  var unread=all.filter(function(a){return a.ts>lastSeen;});
+  if(!unread.length)return;
+
+  _alertMaxTs=Math.max.apply(null,unread.map(function(a){return a.ts;}));
+
+  var sameMth=unread.filter(function(a){return a.y===vY&&a.m===vM;});
+  var otherMth=unread.filter(function(a){return !(a.y===vY&&a.m===vM);});
+
+  // ── Stesso mese: blink su tutte le celle interessate ──
+  if(sameMth.length){
+    var scrolled=false;
+    sameMth.forEach(function(a){
+      var btn=document.querySelector('.cell-btn[data-pid="'+a.pid+'"][data-d="'+a.g+'"]');
+      if(!btn)return;
+      btn.classList.add("nota-blink");
+      if(!scrolled){scrolled=true;setTimeout(function(){btn.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});},150);}
+    });
+    setTimeout(function(){
+      sameMth.forEach(function(a){
+        var btn=document.querySelector('.cell-btn[data-pid="'+a.pid+'"][data-d="'+a.g+'"]');
+        if(btn)btn.classList.remove("nota-blink");
+      });
+      try{localStorage.setItem("lastAlertTs",String(_alertMaxTs));}catch(e){}
+    },6500);
+  }
+
+  // ── Mesi diversi: banner con count e riepilogo ──
+  if(otherMth.length){
+    _showAlertBanner(otherMth);
+  }
+
+  // Se ci sono solo note dello stesso mese → segna già viste (dopo il blink)
+}
+
+function _showAlertBanner(list){
   var ex=document.getElementById("alertBanner");if(ex)ex.remove();
-  var pers=getPersonale();var p=pers.find(function(x){return x.id===al.pid;});
-  var nome=p?(p.grado+" "+p.nome):al.pid;
+  var pers=getPersonale();
+  var n=list.length;
+  // Raggruppa per mese
+  var mesiStr=[];
+  var mesiSeen={};
+  list.forEach(function(a){var k=MESI[a.m]+" "+a.y;if(!mesiSeen[k]){mesiSeen[k]=true;mesiStr.push(k);}});
   var d=document.createElement("div");d.id="alertBanner";
-  d.innerHTML="<span style='flex:1;cursor:pointer' onclick='goAlertNote()'>"
-    +"&#x1F4DD; <strong>Nuova nota</strong>: "+_escH(nome)+" — "+al.g+" "+MESI[al.m]+" "+al.y
-    +(al.txt?"<span style='opacity:.85'> — "+_escH(al.txt)+"</span>":"")
-    +"<span style='font-size:.68rem;margin-left:6px;opacity:.75'>(tocca per vedere)</span></span>"
-    +"<button style='background:rgba(255,255,255,.25);border:none;color:#fff;border-radius:50%;width:26px;height:26px;font-size:.95rem;cursor:pointer;flex-shrink:0;line-height:1' onclick='dismissAlertBanner()'>&#x2715;</button>";
+  var countLbl=n===1?"1 nuova nota":"<strong>"+n+"</strong> nuove note";
+  d.innerHTML="<span style='flex:1;cursor:pointer' onclick='_goAlertNote()'>"
+    +"&#x1F4DD; "+countLbl+" in: <strong>"+mesiStr.join(", ")+"</strong>"
+    +"<span style='font-size:.68rem;margin-left:6px;opacity:.8'> — tocca per vedere</span></span>"
+    +"<button style='background:rgba(255,255,255,.25);border:none;color:#fff;border-radius:50%;width:26px;height:26px;font-size:.95rem;cursor:pointer;flex-shrink:0;line-height:1' onclick='_dismissBanner()'>&#x2715;</button>";
   document.body.appendChild(d);
 }
-function goAlertNote(){
-  var al=getAlertNote();if(!al)return;
-  vY=al.y;vM=al.m;renderAll();dismissAlertBanner();
+
+function _goAlertNote(){
+  // Naviga al primo mese con note non lette (diverso dall'attuale)
+  var all=getAllAlerts();
+  var lastSeen=0;try{lastSeen=parseInt(localStorage.getItem("lastAlertTs")||"0");}catch(e){}
+  var other=all.filter(function(a){return a.ts>lastSeen&&!(a.y===vY&&a.m===vM);});
+  if(!other.length){_dismissBanner();return;}
+  vY=other[0].y;vM=other[0].m;
+  _dismissBanner();
+  renderAll();
   setTimeout(applyAlertBlink,200);
 }
-function dismissAlertBanner(){
-  var al=getAlertNote();
-  if(al&&al.ts){try{localStorage.setItem("lastAlertTs",String(al.ts));}catch(e){}}
+
+function _dismissBanner(){
+  try{localStorage.setItem("lastAlertTs",String(_alertMaxTs||Date.now()));}catch(e){}
   var b=document.getElementById("alertBanner");if(b)b.remove();
 }
 
