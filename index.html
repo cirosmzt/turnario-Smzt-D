@@ -279,11 +279,15 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
   <div class="modal-sub" id="restCodeSub"></div>
   <div class="code-grid" id="restCodeGrid"></div>
   <div class="custom-inp-wrap">
-    <div class="inp-lbl">Oppure scrivi:</div>
-    <input class="custom-inp" id="restCustomCode" placeholder="Testo libero..." maxlength="6">
+    <div class="inp-lbl">Oppure scrivi codice (max 6 car.):</div>
+    <input class="custom-inp" id="restCustomCode" placeholder="es. DEL, SP2..." maxlength="6">
+  </div>
+  <div style="margin-bottom:10px">
+    <div class="inp-lbl">&#x1F4DD; Nota descrittiva completa:</div>
+    <textarea id="restNota" placeholder="es. Delegazione sindacale, missione fuori sede Napoli..." style="width:100%;padding:8px 10px;border:2px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit;resize:vertical;min-height:62px;box-sizing:border-box;margin-top:2px"></textarea>
   </div>
   <div class="mrow">
-    <button class="mbtn mbtn-del" onclick="clearRestCode()">&#x2715; Rimuovi</button>
+    <button class="mbtn mbtn-del" id="btnRimuoviBase" onclick="clearRestCode()" style="display:none">&#x1F5D1; Rimuovi</button>
     <button class="mbtn mbtn-cancel" onclick="closeM('mRestCode')">Annulla</button>
     <button class="mbtn mbtn-ok" onclick="saveRestCode()">&#x2713; Salva</button>
   </div>
@@ -800,6 +804,8 @@ function getNota(pid,y,m,d){return LS.getItem("vvf_nota_"+pid+"_"+y+"_"+m+"_"+d)
 function setNota(pid,y,m,d,v){v?LS.setItem("vvf_nota_"+pid+"_"+y+"_"+m+"_"+d,v):LS.removeItem("vvf_nota_"+pid+"_"+y+"_"+m+"_"+d);}
 function getBaseNote(y,m,d){return LS.getItem("vvf_bn_"+y+"_"+m+"_"+d)||"";}
 function setBaseNote(y,m,d,v){v?LS.setItem("vvf_bn_"+y+"_"+m+"_"+d,v):LS.removeItem("vvf_bn_"+y+"_"+m+"_"+d);}
+function getRestNota(y,m,d){return LS.getItem("vvf_bnn_"+y+"_"+m+"_"+d)||"";}
+function setRestNota(y,m,d,v){v?LS.setItem("vvf_bnn_"+y+"_"+m+"_"+d,v):LS.removeItem("vvf_bnn_"+y+"_"+m+"_"+d);}
 // Commenti giorno (header colonna)
 function getDayNote(y,m,d){return LS.getItem("vvf_dn_"+y+"_"+m+"_"+d)||"";}
 function setDayNote(y,m,d,v){v?LS.setItem("vvf_dn_"+y+"_"+m+"_"+d,v):LS.removeItem("vvf_dn_"+y+"_"+m+"_"+d);}
@@ -1038,13 +1044,20 @@ function clearTurnoOv(){if(tovY!=null){LS.removeItem("vvf_tov_"+tovY+"_"+tovM+"_
 // NOTA RIPOSO (riga base, giorni liberi)
 var rcY=null,rcM=null,rcD=null;
 function openRestCode(y,m,d){
-  if(!isAdmin()){openLogin();return;}
+  if(!isAdmin()){
+    // Non-admin: mostra nota se presente, altrimenti niente
+    var nota=getRestNota(y,m,d);var bn=getBaseNote(y,m,d);
+    if(nota){viewNote((bn?bn+" — ":"")+d+" "+MESI[m]+" "+y,nota);}
+    return;
+  }
   rcY=y;rcM=m;rcD=d;
   var cur=getBaseNote(y,m,d);
+  var curNota=getRestNota(y,m,d);
   document.getElementById("restCodeSub").textContent=d+" "+MESI[m]+" "+y+" - Giorno riposo";
   document.getElementById("restCustomCode").value="";
+  var rn=document.getElementById("restNota");if(rn)rn.value=curNota;
+  var btnR=document.getElementById("btnRimuoviBase");if(btnR)btnR.style.display=cur?"":"none";
   var g=document.getElementById("restCodeGrid");g.innerHTML="";
-  // Mostra solo codici non-D# adatti per note globali
   var notaKeys=["RS","ST","PR","CO","FT","SP","AF","Mi","MX"];
   notaKeys.forEach(function(code){
     var info=CODICI[code];if(!info)return;
@@ -1064,9 +1077,14 @@ function openRestCode(y,m,d){
 function saveRestCode(){
   var custom=document.getElementById("restCustomCode").value.trim().toUpperCase();
   var val=custom||(document.querySelector("#restCodeGrid .code-btn.sel")?document.querySelector("#restCodeGrid .code-btn.sel").querySelector("span").textContent:"");
-  if(rcY!=null&&val){setBaseNote(rcY,rcM,rcD,val);closeM("mRestCode");renderAll();}else closeM("mRestCode");
+  var nota=(document.getElementById("restNota")||{value:""}).value.trim();
+  if(rcY!=null&&(val||nota)){
+    if(val)setBaseNote(rcY,rcM,rcD,val);
+    setRestNota(rcY,rcM,rcD,nota);
+    closeM("mRestCode");renderAll();
+  }else closeM("mRestCode");
 }
-function clearRestCode(){if(rcY!=null){setBaseNote(rcY,rcM,rcD,"");closeM("mRestCode");renderAll();}}
+function clearRestCode(){if(rcY!=null){setBaseNote(rcY,rcM,rcD,"");setRestNota(rcY,rcM,rcD,"");closeM("mRestCode");renderAll();}}
 
 // PERSONALE MODAL
 var persToDelete=null;
@@ -1599,11 +1617,21 @@ function renderTable(){
       else h+="<td style=\"background:"+colBgBase+"\"><span class=\""+cls+"\">"+lbl+"</span></td>";
     }else{
       // Smontante notte o Riposo: mostra etichetta + eventuale nota
+      var bnn=getRestNota(vY,vM,g);
       if(bn){
         var info=CODICI[bn]||{bg:"#f0f4f8",c:"#374151"};
+        var bndot=bnn?"<span style=\"position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:#f97316;border-radius:50%;border:1.5px solid #fff;display:block\"></span>":"";
+        var bntitle=bnn?bn+" | "+bnn:bn+(admin?" - Click per modificare":"");
         h+="<td style=\"padding:1px;background:"+colBgBase+"\">";
-        if(admin)h+="<span class=\"d-REST-code\" style=\"background:"+info.bg+";color:"+info.c+"\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+bn+" - Click per modificare\">"+bn+"</span>";
-        else h+="<span class=\"d-REST-code\" style=\"background:"+info.bg+";color:"+info.c+"\">"+bn+"</span>";
+        if(admin)h+="<span class=\"d-REST-code\" style=\"position:relative;display:inline-block;background:"+info.bg+";color:"+info.c+"\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+bntitle+"\">"+bn+bndot+"</span>";
+        else h+="<span class=\"d-REST-code\" style=\"position:relative;display:inline-block;background:"+info.bg+";color:"+info.c+(bnn?"\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g:"")+"\" title=\""+(bnn?bnn:bn)+"\">"+bn+bndot+"</span>";
+        h+="</td>";
+      }else if(bnn){
+        // Nota senza codice
+        var bndotOnly="<span style=\"position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:#f97316;border-radius:50%;border:1.5px solid #fff;display:block\"></span>";
+        h+="<td style=\"padding:1px;background:"+colBgBase+"\">";
+        if(admin)h+="<span class=\"d-REST-code\" style=\"position:relative;display:inline-block;background:#fff7ed;color:#c2410c\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+bnn+"\">&#x1F4DD;"+bndotOnly+"</span>";
+        else h+="<span class=\"d-REST-code\" style=\"position:relative;display:inline-block;background:#fff7ed;color:#c2410c\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+bnn+"\">&#x1F4DD;"+bndotOnly+"</span>";
         h+="</td>";
       }else{
         h+="<td style=\"background:"+colBgBase+"\">";
@@ -1631,7 +1659,7 @@ function renderTable(){
         if(s==="P")tot++;else if(s==="PP")tot+=2;
         var nota=getNota(p.id,vY,vM,g);
         var ndot=nota?"<span style=\"position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:#f97316;border-radius:50%;border:1.5px solid #fff;display:block\"></span>":"";
-        var ntitle=info.lbl+(nota?" | "+nota.replace(/"/g,"").substring(0,50):"");
+        var ntitle=info.lbl+(nota?" | "+nota.replace(/"/g,"&quot;"):"");
         h+="<td style=\"padding:2px;background:"+colBg+";"+saltoHint+todS+"\"><div style=\"position:relative;display:inline-block\">"
           +"<button class=\"cell-btn cell-edit\" style=\"background:"+info.bg+";color:"+info.c+";"+(admin?"":"cursor:default")+"\" "
           +"data-pid=\""+p.id+"\" data-y=\""+vY+"\" data-m=\""+vM+"\" data-d=\""+g+"\" data-s=\""+s+"\" title=\""+ntitle+"\">"+s+"</button>"+ndot+"</div></td>";
