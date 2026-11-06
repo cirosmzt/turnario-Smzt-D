@@ -162,7 +162,7 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
 .th-gg-adm{cursor:pointer;position:relative;}
 .th-gg-adm:hover{outline:2px solid #f59e0b;outline-offset:-2px;}
 @keyframes notaBlink{0%,100%{box-shadow:none;transform:scale(1);}40%,60%{box-shadow:0 0 0 4px #f97316,0 0 12px #f9731680;transform:scale(1.15);}}
-.nota-blink{animation:notaBlink .65s ease-in-out 9!important;border-radius:4px!important;position:relative;z-index:4;}
+.nota-blink{animation:notaBlink .65s ease-in-out infinite!important;border-radius:4px!important;position:relative;z-index:4;}
 #alertBanner{position:fixed;top:54px;left:0;right:0;z-index:9500;background:linear-gradient(90deg,#ea580c,#f97316);color:#fff;padding:9px 14px;font-size:.78rem;display:flex;align-items:center;gap:10px;box-shadow:0 3px 10px rgba(0,0,0,.25);}
 .day-note-dot{position:absolute;top:2px;right:2px;width:7px;height:7px;background:#c0111f;border-radius:50%;display:inline-block;border:1.5px solid rgba(255,255,255,.7);}
 .tr-pcount td{font-size:.68rem;font-weight:700;text-align:center;padding:2px 1px;border-top:2px solid #e2e8f0;}
@@ -313,6 +313,20 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
   <div id="viewNoteText" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;font-size:.88rem;color:#1a2e4a;line-height:1.5;min-height:44px;margin-top:8px;white-space:pre-wrap;word-break:break-word;"></div>
   <div class="mrow" style="margin-top:12px">
     <button class="mbtn mbtn-cancel" onclick="closeM('mViewNote')" style="width:100%">Chiudi</button>
+  </div>
+</div></div>
+
+<!-- MODAL SCRIVI NOTA (non-admin e admin) -->
+<div class="mbg" id="mCellNota"><div class="modal" style="max-width:340px">
+  <h3>&#x1F4DD; Nota cella</h3>
+  <div class="modal-sub" id="cellNotaSub"></div>
+  <div style="margin-bottom:10px">
+    <div class="inp-lbl">Scrivi la tua nota:</div>
+    <textarea id="cellNotaText" placeholder="es. Cambio turno con Rossi, permesso accordato..." style="width:100%;padding:8px 10px;border:2px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit;resize:vertical;min-height:72px;box-sizing:border-box;margin-top:2px"></textarea>
+  </div>
+  <div class="mrow">
+    <button class="mbtn mbtn-cancel" onclick="closeM('mCellNota')">Annulla</button>
+    <button class="mbtn mbtn-ok" onclick="saveCellNota()">&#x2713; Salva</button>
   </div>
 </div></div>
 
@@ -869,7 +883,8 @@ document.querySelectorAll(".mbg").forEach(function(el){el.addEventListener("clic
 // CELLA EDIT
 var mPid=null,mY=null,mM=null,mD=null,mSel=null;
 function openEdit(pid,y,m,d,cur){
-  if(!isAdmin()){var nota=getNota(pid,y,m,d);if(nota){var p=getPersonale().find(function(x){return x.id===pid;});viewNote((p?p.grado+" "+p.nome:"")+(" — "+d+" "+MESI[m]+" "+y),nota);}return;}
+  if(!isAdmin()){openNota(pid,y,m,d);return;}
+  _markCellSeen(pid,y,m,d);
   mPid=pid;mY=y;mM=m;mD=d;mSel=cur||null;
   var p=getPersonale().find(function(x){return x.id===pid;});
   var ti=getTurnoInfo(y,m,d);
@@ -906,6 +921,28 @@ function saveCell(){
 function clearCell(){if(mPid){setS(mPid,mY,mM,mD,"");setNota(mPid,mY,mM,mD,"");closeEdit();renderAll();}}
 function closeEdit(){closeM("mEdit");mPid=null;}
 
+// ─── NOTA CELLA (tutti gli utenti) ───────────────────────────────────
+var cnPid=null,cnY=null,cnM=null,cnD=null;
+function openNota(pid,y,m,d){
+  cnPid=pid;cnY=y;cnM=m;cnD=d;
+  var pers=getPersonale();
+  var p=pers.find(function(x){return x.id===pid;});
+  var nome=p?(p.grado+" "+p.nome):pid;
+  document.getElementById("cellNotaSub").textContent=nome+" — "+d+" "+MESI[m]+" "+y;
+  document.getElementById("cellNotaText").value=getNota(pid,y,m,d)||"";
+  _markCellSeen(pid,y,m,d);
+  openM("mCellNota");
+}
+function saveCellNota(){
+  var nota=(document.getElementById("cellNotaText")||{value:""}).value.trim();
+  if(cnPid!=null){
+    setNota(cnPid,cnY,cnM,cnD,nota);
+    if(nota)setAlertNote(cnPid,cnY,cnM,cnD,nota);
+    closeM("mCellNota");
+    renderAll();
+  }else closeM("mCellNota");
+}
+
 // ─── NOTA ALERT SYSTEM ───────────────────────────────────────────────
 // Ogni nota ha chiave propria → nessuna sovrascrittura, più note = più alert
 var _alertDebounce=null;
@@ -913,11 +950,19 @@ var _alertMaxTs=0;
 
 function setAlertNote(pid,y,m,g,nota){
   var ts=Date.now();
-  // chiave unica per ogni cella: non sovrascrive note precedenti
   LS.setItem("vvf_notal_"+pid+"_"+y+"_"+m+"_"+g,
     JSON.stringify({pid:pid,y:y,m:m,g:g,ts:ts,txt:(nota||"").substring(0,80)}));
-  // chi salva non vede il suo stesso blink
-  try{localStorage.setItem("lastAlertTs",String(ts));}catch(e){}
+  // Chi salva segna subito la propria cella come vista (non vede il suo stesso blink)
+  try{localStorage.setItem("vvf_seen_"+pid+"_"+y+"_"+m+"_"+g,"1");}catch(e){}
+}
+
+function _isCellSeen(pid,y,m,g){
+  try{return localStorage.getItem("vvf_seen_"+pid+"_"+y+"_"+m+"_"+g)==="1";}catch(e){return false;}
+}
+function _markCellSeen(pid,y,m,g){
+  try{localStorage.setItem("vvf_seen_"+pid+"_"+y+"_"+m+"_"+g,"1");}catch(e){}
+  var btn=document.querySelector('.cell-btn[data-pid="'+pid+'"][data-d="'+g+'"]');
+  if(btn)btn.classList.remove("nota-blink");
 }
 
 function getAllAlerts(){
@@ -944,8 +989,8 @@ function applyAlertBlink(){
 function _doAlertBlink(){
   var all=getAllAlerts();
   if(!all.length)return;
-  var lastSeen=0;try{lastSeen=parseInt(localStorage.getItem("lastAlertTs")||"0");}catch(e){}
-  var unread=all.filter(function(a){return a.ts>lastSeen;});
+  // Filtra con tracking per-cella: il blink dura finché l'utente non apre la cella
+  var unread=all.filter(function(a){return !_isCellSeen(a.pid,a.y,a.m,a.g);});
   if(!unread.length)return;
 
   _alertMaxTs=Math.max.apply(null,unread.map(function(a){return a.ts;}));
@@ -953,7 +998,7 @@ function _doAlertBlink(){
   var sameMth=unread.filter(function(a){return a.y===vY&&a.m===vM;});
   var otherMth=unread.filter(function(a){return !(a.y===vY&&a.m===vM);});
 
-  // ── Stesso mese: blink su tutte le celle interessate ──
+  // ── Stesso mese: blink infinito finché l'utente non apre la cella ──
   if(sameMth.length){
     var scrolled=false;
     sameMth.forEach(function(a){
@@ -962,21 +1007,13 @@ function _doAlertBlink(){
       btn.classList.add("nota-blink");
       if(!scrolled){scrolled=true;setTimeout(function(){btn.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});},150);}
     });
-    setTimeout(function(){
-      sameMth.forEach(function(a){
-        var btn=document.querySelector('.cell-btn[data-pid="'+a.pid+'"][data-d="'+a.g+'"]');
-        if(btn)btn.classList.remove("nota-blink");
-      });
-      try{localStorage.setItem("lastAlertTs",String(_alertMaxTs));}catch(e){}
-    },6500);
+    // Nessun timeout di rimozione: il blink si ferma solo quando l'utente apre la cella
   }
 
   // ── Mesi diversi: banner con count e riepilogo ──
   if(otherMth.length){
     _showAlertBanner(otherMth);
   }
-
-  // Se ci sono solo note dello stesso mese → segna già viste (dopo il blink)
 }
 
 function _showAlertBanner(list){
@@ -997,10 +1034,8 @@ function _showAlertBanner(list){
 }
 
 function _goAlertNote(){
-  // Naviga al primo mese con note non lette (diverso dall'attuale)
   var all=getAllAlerts();
-  var lastSeen=0;try{lastSeen=parseInt(localStorage.getItem("lastAlertTs")||"0");}catch(e){}
-  var other=all.filter(function(a){return a.ts>lastSeen&&!(a.y===vY&&a.m===vM);});
+  var other=all.filter(function(a){return !_isCellSeen(a.pid,a.y,a.m,a.g)&&!(a.y===vY&&a.m===vM);});
   if(!other.length){_dismissBanner();return;}
   vY=other[0].y;vM=other[0].m;
   _dismissBanner();
@@ -1009,7 +1044,10 @@ function _goAlertNote(){
 }
 
 function _dismissBanner(){
-  try{localStorage.setItem("lastAlertTs",String(_alertMaxTs||Date.now()));}catch(e){}
+  // Segna come viste tutte le note dei mesi diversi che stavano nel banner
+  var all=getAllAlerts();
+  all.filter(function(a){return !_isCellSeen(a.pid,a.y,a.m,a.g)&&!(a.y===vY&&a.m===vM);})
+    .forEach(function(a){_markCellSeen(a.pid,a.y,a.m,a.g);});
   var b=document.getElementById("alertBanner");if(b)b.remove();
 }
 
