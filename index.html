@@ -1702,15 +1702,22 @@ function renderTable(){
           +"<button class=\"cell-btn cell-edit\" style=\"background:"+info.bg+";color:"+info.c+";"+(admin?"":"cursor:default")+"\" "
           +"data-pid=\""+p.id+"\" data-y=\""+vY+"\" data-m=\""+vM+"\" data-d=\""+g+"\" data-s=\""+s+"\" title=\""+ntitle+"\">"+s+"</button>"+ndot+"</div></td>";
       }else{
-        h+="<td style=\"padding:2px;background:"+colBg+";"+saltoHint+todS+"\">";
+        var notaV=getNota(p.id,vY,vM,g);
+        var ndotV=notaV?"<span style=\"position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:#f97316;border-radius:50%;border:1.5px solid #fff;display:block\"></span>":"";
+        var ntitleV=notaV?notaV.replace(/"/g,"&quot;"):(isSaltoDay?"Turno D"+p.salto:"Aggiungi");
+        h+="<td style=\"padding:2px;background:"+colBg+";"+saltoHint+todS+"\"><div style=\"position:relative;display:inline-block\">";
         if(admin){
-          h+="<button class=\"cell-btn "+(isSaltoDay?"cell-add-salto":"cell-add")+" cell-edit\" "
-            +"data-pid=\""+p.id+"\" data-y=\""+vY+"\" data-m=\""+vM+"\" data-d=\""+g+"\" data-s=\"\" "
-            +"title=\""+(isSaltoDay?"Turno D"+p.salto:"Aggiungi")+"\">+</button>";
+          var emptyLbl=notaV?"&#x1F4DD;":(isSaltoDay?"<span style='font-size:.6rem'>D"+p.salto+"</span>":"+");
+          var emptyBg=notaV?"#fff7ed;color:#c2410c":isSaltoDay?"transparent;color:#f97316":"transparent;color:#94a3b8";
+          h+="<button class=\"cell-btn "+(notaV||isSaltoDay?"cell-add-salto":"cell-add")+" cell-edit\" style=\"background:"+emptyBg+"\" "
+            +"data-pid=\""+p.id+"\" data-y=\""+vY+"\" data-m=\""+vM+"\" data-d=\""+g+"\" data-s=\"\" title=\""+ntitleV+"\">"+emptyLbl+"</button>"+ndotV;
         }else{
-          h+="<span class=\"cell-btn cell-ro\">&middot;</span>";
+          var emptyLblU=notaV?"&#x1F4DD;":"&middot;";
+          var emptyBgU=notaV?"#fff7ed;color:#c2410c":"transparent;color:#94a3b8";
+          h+="<button class=\"cell-btn cell-edit\" style=\"background:"+emptyBgU+";cursor:default;border:none\" "
+            +"data-pid=\""+p.id+"\" data-y=\""+vY+"\" data-m=\""+vM+"\" data-d=\""+g+"\" data-s=\"\" title=\""+ntitleV+"\">"+emptyLblU+"</button>"+ndotV;
         }
-        h+="</td>";
+        h+="</div></td>";
       }
     }
     h+="<td class=\"tot-td\">"+tot+"</td></tr>";
