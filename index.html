@@ -297,8 +297,8 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
 <div class="mbg" id="mDayNote"><div class="modal" style="max-width:340px">
   <h3>&#x1F4AC; Commento giorno</h3>
   <div class="modal-sub" id="dayNoteSub"></div>
-  <div class="inp-lbl">Testo del commento (max 120 caratteri):</div>
-  <textarea class="inp" id="dayNoteText" placeholder="es. Mancata presenza, cambio turno..." maxlength="120" style="width:100%;resize:vertical;min-height:62px;box-sizing:border-box;margin-top:2px;padding:8px 10px;font-family:inherit;font-size:.82rem;border:2px solid var(--brd);border-radius:8px;"></textarea>
+  <div class="inp-lbl">Nota sul giorno:</div>
+  <textarea class="inp" id="dayNoteText" placeholder="es. Mancata presenza, cambio turno, riunione straordinaria..." maxlength="300" style="width:100%;resize:vertical;min-height:62px;box-sizing:border-box;margin-top:2px;padding:8px 10px;font-family:inherit;font-size:.82rem;border:2px solid var(--brd);border-radius:8px;"></textarea>
   <div class="mrow">
     <button class="mbtn mbtn-del" onclick="clearDayNote()">&#x2715; Rimuovi</button>
     <button class="mbtn mbtn-cancel" onclick="closeM('mDayNote')">Annulla</button>
@@ -825,7 +825,7 @@ function getDayNote(y,m,d){return LS.getItem("vvf_dn_"+y+"_"+m+"_"+d)||"";}
 function setDayNote(y,m,d,v){v?LS.setItem("vvf_dn_"+y+"_"+m+"_"+d,v):LS.removeItem("vvf_dn_"+y+"_"+m+"_"+d);}
 var dnY=null,dnM=null,dnD=null;
 function openDayNoteModal(y,m,d){
-  if(!isAdmin()){var dn=getDayNote(y,m,d);if(dn)viewNote(d+" "+MESI[m]+" "+y,dn);return;}
+  _markDaySeen(y,m,d);
   dnY=y;dnM=m;dnD=d;
   document.getElementById("dayNoteSub").textContent=d+" "+MESI[m]+" "+y;
   document.getElementById("dayNoteText").value=getDayNote(y,m,d);
@@ -834,7 +834,11 @@ function openDayNoteModal(y,m,d){
 }
 function saveDayNoteModal(){
   var txt=document.getElementById("dayNoteText").value.trim();
-  if(dnY!=null){setDayNote(dnY,dnM,dnD,txt);closeM("mDayNote");renderAll();}
+  if(dnY!=null){
+    setDayNote(dnY,dnM,dnD,txt);
+    if(txt)setDayNoteAlert(dnY,dnM,dnD,txt);
+    closeM("mDayNote");renderAll();
+  }
 }
 function clearDayNote(){
   if(dnY!=null){setDayNote(dnY,dnM,dnD,"");closeM("mDayNote");renderAll();}
@@ -965,12 +969,39 @@ function _markCellSeen(pid,y,m,g){
   if(btn)btn.classList.remove("nota-blink");
 }
 
+// Alert note-giorno (celle dei numeri in cima)
+function setDayNoteAlert(y,m,d,nota){
+  var ts=Date.now();
+  LS.setItem("vvf_dnotal_"+y+"_"+m+"_"+d,
+    JSON.stringify({type:"dn",y:y,m:m,d:d,ts:ts,txt:(nota||"").substring(0,80)}));
+  // Chi salva segna subito come visto
+  try{localStorage.setItem("vvf_dnseen_"+y+"_"+m+"_"+d,"1");}catch(e){}
+}
+function _isDaySeen(y,m,d){
+  try{return localStorage.getItem("vvf_dnseen_"+y+"_"+m+"_"+d)==="1";}catch(e){return false;}
+}
+function _markDaySeen(y,m,d){
+  try{localStorage.setItem("vvf_dnseen_"+y+"_"+m+"_"+d,"1");}catch(e){}
+  var th=document.querySelector('[data-dcm][data-ty="'+y+'"][data-tm="'+m+'"][data-td="'+d+'"]');
+  if(th)th.classList.remove("nota-blink");
+}
+// Helper unificato per entrambi i tipi di alert
+function _isAlertSeen(a){
+  if(a.type==="dn")return _isDaySeen(a.y,a.m,a.d);
+  return _isCellSeen(a.pid,a.y,a.m,a.g);
+}
+function _markAlertSeen(a){
+  if(a.type==="dn")_markDaySeen(a.y,a.m,a.d);
+  else _markCellSeen(a.pid,a.y,a.m,a.g);
+}
+
 function getAllAlerts(){
-  // Raccoglie tutte le vvf_notal_* presenti in fbCache (ultimi 30 gg)
   var cutoff=Date.now()-30*24*3600*1000;
   var list=[];
   Object.keys(fbCache).forEach(function(k){
-    if(k.indexOf("vvf_notal_")!==0)return;
+    var isCella=k.indexOf("vvf_notal_")===0;
+    var isGiorno=k.indexOf("vvf_dnotal_")===0;
+    if(!isCella&&!isGiorno)return;
     var raw=fbCache[k];
     var a;try{a=typeof raw==="object"?raw:JSON.parse(raw);}catch(e){return;}
     if(!a||!a.ts||a.ts<cutoff)return;
@@ -989,8 +1020,7 @@ function applyAlertBlink(){
 function _doAlertBlink(){
   var all=getAllAlerts();
   if(!all.length)return;
-  // Filtra con tracking per-cella: il blink dura finché l'utente non apre la cella
-  var unread=all.filter(function(a){return !_isCellSeen(a.pid,a.y,a.m,a.g);});
+  var unread=all.filter(function(a){return !_isAlertSeen(a);});
   if(!unread.length)return;
 
   _alertMaxTs=Math.max.apply(null,unread.map(function(a){return a.ts;}));
@@ -998,16 +1028,22 @@ function _doAlertBlink(){
   var sameMth=unread.filter(function(a){return a.y===vY&&a.m===vM;});
   var otherMth=unread.filter(function(a){return !(a.y===vY&&a.m===vM);});
 
-  // ── Stesso mese: blink infinito finché l'utente non apre la cella ──
+  // ── Stesso mese: blink infinito finché l'utente non apre/tocca ──
   if(sameMth.length){
     var scrolled=false;
     sameMth.forEach(function(a){
-      var btn=document.querySelector('.cell-btn[data-pid="'+a.pid+'"][data-d="'+a.g+'"]');
-      if(!btn)return;
-      btn.classList.add("nota-blink");
-      if(!scrolled){scrolled=true;setTimeout(function(){btn.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});},150);}
+      if(a.type==="dn"){
+        // Nota-giorno: lampeggia il <th> con il numero del giorno
+        var th=document.querySelector('[data-dcm][data-ty="'+a.y+'"][data-tm="'+a.m+'"][data-td="'+a.d+'"]');
+        if(th)th.classList.add("nota-blink");
+      }else{
+        // Nota-cella personale
+        var btn=document.querySelector('.cell-btn[data-pid="'+a.pid+'"][data-d="'+a.g+'"]');
+        if(!btn)return;
+        btn.classList.add("nota-blink");
+        if(!scrolled){scrolled=true;setTimeout(function(){btn.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});},150);}
+      }
     });
-    // Nessun timeout di rimozione: il blink si ferma solo quando l'utente apre la cella
   }
 
   // ── Mesi diversi: banner con count e riepilogo ──
@@ -1035,7 +1071,7 @@ function _showAlertBanner(list){
 
 function _goAlertNote(){
   var all=getAllAlerts();
-  var other=all.filter(function(a){return !_isCellSeen(a.pid,a.y,a.m,a.g)&&!(a.y===vY&&a.m===vM);});
+  var other=all.filter(function(a){return !_isAlertSeen(a)&&!(a.y===vY&&a.m===vM);});
   if(!other.length){_dismissBanner();return;}
   vY=other[0].y;vM=other[0].m;
   _dismissBanner();
@@ -1046,8 +1082,8 @@ function _goAlertNote(){
 function _dismissBanner(){
   // Segna come viste tutte le note dei mesi diversi che stavano nel banner
   var all=getAllAlerts();
-  all.filter(function(a){return !_isCellSeen(a.pid,a.y,a.m,a.g)&&!(a.y===vY&&a.m===vM);})
-    .forEach(function(a){_markCellSeen(a.pid,a.y,a.m,a.g);});
+  all.filter(function(a){return !_isAlertSeen(a)&&!(a.y===vY&&a.m===vM);})
+    .forEach(function(a){_markAlertSeen(a);});
   var b=document.getElementById("alertBanner");if(b)b.remove();
 }
 
@@ -1626,8 +1662,8 @@ function renderTable(){
     var hdrBg=isTod?"background:#c0111f;color:#fff;":"background:"+cBg0+";"+(dow===0?"color:#c0111f;font-weight:700;":dow===6?"color:#374151;font-style:italic;":"color:#374151;");
     var dn0=getDayNote(vY,vM,g);
     var dotH=dn0?"<span class=\"day-note-dot\" title=\""+dn0.replace(/"/g,"&quot;").substring(0,60)+"\"></span>":"";
-    var admCls=admin?" th-gg-adm":"";
-    var admAtt=(admin||dn0)?" data-dcm=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(dn0?dn0.replace(/"/g,"&quot;").substring(0,60):"Aggiungi commento al giorno")+"\"":"";
+    var admCls=" th-gg-adm";
+    var admAtt=" data-dcm=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(dn0?dn0.replace(/"/g,"&quot;").substring(0,60):"Aggiungi nota al giorno")+"\"";
     var todId=isTod?" id=\"td-today\"":"";
     h+="<th"+todId+" class=\"th-gg"+admCls+"\" style=\"position:relative;"+hdrBg+"\""+admAtt+">"+g+dotH+"</th>";
   }
