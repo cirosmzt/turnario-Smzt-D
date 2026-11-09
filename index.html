@@ -809,6 +809,29 @@ function getTurnoInfo(y,m,d){
   return {turno:null,tipo:null,override:false}; // riposo
 }
 
+// ALTRI TURNI (A, B, C) — offset: A=+3, B=+2, C=+1 rispetto a D nel ciclo 32gg
+function getAltriTurniHTML(y,m,d){
+  var date_x=new Date(y,m,d);
+  var days_x=Math.round((date_x-REF)/86400000);
+  var cicloD=((days_x%32)+32)%32;
+  var html="";
+  var sqs=[["A",3],["B",2],["C",1]];
+  for(var i=0;i<3;i++){
+    var sq=sqs[i][0],off=sqs[i][1];
+    var cicloX=((cicloD+off)%32+32)%32;
+    var bloccoX=Math.floor(cicloX/4);
+    var posX=cicloX%4;
+    var numX=((3+bloccoX)%8+1);
+    var tipoX=posX===0?"G":posX===1?"N":posX===2?"SM":null;
+    var col,fw,lbl;
+    if(tipoX==="G"){col="#b45309";fw="700";lbl=sq+numX+"G";}
+    else if(tipoX==="N"){col="#1d4ed8";fw="700";lbl=sq+numX+"N";}
+    else if(tipoX==="SM"){col="#9ca3af";fw="500";lbl=sq+numX+"·";}
+    else{col="#d1d5db";fw="400";lbl=sq+numX+" ";}
+    html+="<div style=\"color:"+col+";font-size:.48rem;line-height:1.3;font-weight:"+fw+"\">"+lbl+"</div>";
+  }
+  return "<div style=\"display:flex;flex-direction:column;align-items:center;padding:1px 0\">"+html+"</div>";
+}
 // LOCALSTORAGE
 function lsKey(pid,y,m,d){return "vvf_"+pid+"_"+y+"_"+m+"_"+d;}
 function getS(pid,y,m,d){return LS.getItem(lsKey(pid,y,m,d))||"";}
@@ -1714,6 +1737,16 @@ function renderTable(){
         h+="</td>";
       }
     }
+  }
+  h+="<td></td></tr>";
+  // RIGA ALTRI TURNI (A, B, C)
+  h+="<tr class=\"tr-altriturni\"><td class=\"td-base-nome\" style=\"font-size:.58rem;color:#6b7280;font-weight:600;padding-left:6px\">&#127960;&nbsp;A&nbsp;B&nbsp;C</td>";
+  for(var g=1;g<=dim;g++){
+    var ti_at=getTurnoInfo(vY,vM,g);
+    var colBgAt=ti_at.tipo==="G"?"#fde68a":ti_at.tipo==="N"?"#bfdbfe":ti_at.tipo==="SM"?"#f1f5f9":"#f9fafb";
+    var isTodAt=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
+    var todSAt=isTodAt?"outline:2px solid #c0111f;outline-offset:-1px;":"";
+    h+="<td style=\"background:"+colBgAt+";padding:0;"+todSAt+"\">"+getAltriTurniHTML(vY,vM,g)+"</td>";
   }
   h+="<td></td></tr>";
   // RIGHE PERSONALE
