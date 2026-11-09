@@ -809,28 +809,24 @@ function getTurnoInfo(y,m,d){
   return {turno:null,tipo:null,override:false}; // riposo
 }
 
-// ALTRI TURNI (A, B, C) — offset: A=+3, B=+2, C=+1 rispetto a D nel ciclo 32gg
-function getAltriTurniHTML(y,m,d){
+// ALTRI TURNI — restituisce "GiornoSq#-NotteSq#" per il giorno dato
+// Offset ciclo: A=+3, B=+2, C=+1, D=0
+function getTurniLabel(y,m,d){
   var date_x=new Date(y,m,d);
   var days_x=Math.round((date_x-REF)/86400000);
   var cicloD=((days_x%32)+32)%32;
-  var html="";
-  var sqs=[["A",3],["B",2],["C",1]];
-  for(var i=0;i<3;i++){
+  var giornoSq=null,notteSq=null;
+  var sqs=[["A",3],["B",2],["C",1],["D",0]];
+  for(var i=0;i<4;i++){
     var sq=sqs[i][0],off=sqs[i][1];
     var cicloX=((cicloD+off)%32+32)%32;
     var bloccoX=Math.floor(cicloX/4);
     var posX=cicloX%4;
     var numX=((3+bloccoX)%8+1);
-    var tipoX=posX===0?"G":posX===1?"N":posX===2?"SM":null;
-    var col,fw,lbl;
-    if(tipoX==="G"){col="#b45309";fw="700";lbl=sq+numX+"G";}
-    else if(tipoX==="N"){col="#1d4ed8";fw="700";lbl=sq+numX+"N";}
-    else if(tipoX==="SM"){col="#9ca3af";fw="500";lbl=sq+numX+"·";}
-    else{col="#d1d5db";fw="400";lbl=sq+numX+" ";}
-    html+="<div style=\"color:"+col+";font-size:.48rem;line-height:1.3;font-weight:"+fw+"\">"+lbl+"</div>";
+    if(posX===0)giornoSq=sq+numX;
+    if(posX===1)notteSq=sq+numX;
   }
-  return "<div style=\"display:flex;flex-direction:column;align-items:center;padding:1px 0\">"+html+"</div>";
+  return (giornoSq||"")+(giornoSq&&notteSq?"-":"")+(notteSq||"");
 }
 // LOCALSTORAGE
 function lsKey(pid,y,m,d){return "vvf_"+pid+"_"+y+"_"+m+"_"+d;}
@@ -1706,12 +1702,14 @@ function renderTable(){
     var ti=getTurnoInfo(vY,vM,g);
     var colBgBase=ti.tipo==="G"?"#fde68a":ti.tipo==="N"?"#bfdbfe":ti.tipo==="SM"?"#f1f5f9":"#f9fafb";
     var bn=getBaseNote(vY,vM,g);
+    var turniLbl=getTurniLabel(vY,vM,g);
+    var tlDiv="<div style=\"font-size:.42rem;text-align:center;line-height:1.1;margin-top:1px;color:"+(ti.turno?"#374151":"#9ca3af")+";font-weight:600\">"+turniLbl+"</div>";
     if(ti.turno){
       var cls=ti.tipo==="N"?"d-N":"d-G";
       var ico=ti.tipo==="N"?"<span style='color:#94a3b8'>&#x1F319;</span>":"<span style='color:#f59e0b'>&#x2600;</span>";
       var lbl=ico+ti.turno+(ti.override?"*":"");
-      if(admin)h+="<td style=\"padding:1px;background:"+colBgBase+"\"><span class=\""+cls+(ti.override?" d-OV":"")+"\" data-tov=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\"Click per modificare\">"+lbl+"</span></td>";
-      else h+="<td style=\"background:"+colBgBase+"\"><span class=\""+cls+"\">"+lbl+"</span></td>";
+      if(admin)h+="<td style=\"padding:1px;background:"+colBgBase+";text-align:center\"><span class=\""+cls+(ti.override?" d-OV":"")+"\" data-tov=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\"Click per modificare\">"+lbl+"</span>"+tlDiv+"</td>";
+      else h+="<td style=\"background:"+colBgBase+";text-align:center\"><span class=\""+cls+"\">"+lbl+"</span>"+tlDiv+"</td>";
     }else{
       // Smontante notte o Riposo: mostra etichetta + eventuale nota
       var bnn=getRestNota(vY,vM,g);
@@ -1719,34 +1717,24 @@ function renderTable(){
         var info=CODICI[bn]||{bg:"#f0f4f8",c:"#374151"};
         var bndot=bnn?"<span style=\"position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:#f97316;border-radius:50%;border:1.5px solid #fff;display:block\"></span>":"";
         var bntitle=bnn?bn+" | "+bnn:bn+(admin?" - Click per modificare":"");
-        h+="<td style=\"padding:1px;background:"+colBgBase+"\">";
+        h+="<td style=\"padding:1px;background:"+colBgBase+";text-align:center\">";
         if(admin)h+="<span class=\"d-REST-code\" style=\"position:relative;display:inline-block;background:"+info.bg+";color:"+info.c+"\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+bntitle+"\">"+bn+bndot+"</span>";
         else h+="<span class=\"d-REST-code\" style=\"position:relative;display:inline-block;background:"+info.bg+";color:"+info.c+(bnn?"\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g:"")+"\" title=\""+(bnn?bnn:bn)+"\">"+bn+bndot+"</span>";
-        h+="</td>";
+        h+=tlDiv+"</td>";
       }else if(bnn){
         // Nota senza codice
         var bndotOnly="<span style=\"position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:#f97316;border-radius:50%;border:1.5px solid #fff;display:block\"></span>";
-        h+="<td style=\"padding:1px;background:"+colBgBase+"\">";
+        h+="<td style=\"padding:1px;background:"+colBgBase+";text-align:center\">";
         if(admin)h+="<span class=\"d-REST-code\" style=\"position:relative;display:inline-block;background:#fff7ed;color:#c2410c\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+bnn+"\">&#x1F4DD;"+bndotOnly+"</span>";
         else h+="<span class=\"d-REST-code\" style=\"position:relative;display:inline-block;background:#fff7ed;color:#c2410c\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+bnn+"\">&#x1F4DD;"+bndotOnly+"</span>";
-        h+="</td>";
+        h+=tlDiv+"</td>";
       }else{
-        h+="<td style=\"background:"+colBgBase+"\">";
+        h+="<td style=\"background:"+colBgBase+";text-align:center\">";
         if(admin)h+="<span class=\"d-REST-edit\" data-restcode=\"1\" data-ty=\""+vY+"\" data-tm=\""+vM+"\" data-td=\""+g+"\" title=\""+(ti.tipo==="SM"?"Smontante notte":"Riposo")+"\">+</span>";
         else h+="<span class=\"off-lbl\">&mdash;</span>";
-        h+="</td>";
+        h+=tlDiv+"</td>";
       }
     }
-  }
-  h+="<td></td></tr>";
-  // RIGA ALTRI TURNI (A, B, C)
-  h+="<tr class=\"tr-altriturni\"><td class=\"td-base-nome\" style=\"font-size:.58rem;color:#6b7280;font-weight:600;padding-left:6px\">&#127960;&nbsp;A&nbsp;B&nbsp;C</td>";
-  for(var g=1;g<=dim;g++){
-    var ti_at=getTurnoInfo(vY,vM,g);
-    var colBgAt=ti_at.tipo==="G"?"#fde68a":ti_at.tipo==="N"?"#bfdbfe":ti_at.tipo==="SM"?"#f1f5f9":"#f9fafb";
-    var isTodAt=(today.getFullYear()===vY&&today.getMonth()===vM&&today.getDate()===g);
-    var todSAt=isTodAt?"outline:2px solid #c0111f;outline-offset:-1px;":"";
-    h+="<td style=\"background:"+colBgAt+";padding:0;"+todSAt+"\">"+getAltriTurniHTML(vY,vM,g)+"</td>";
   }
   h+="<td></td></tr>";
   // RIGHE PERSONALE
