@@ -1703,7 +1703,7 @@ function renderTable(){
     var colBgBase=ti.tipo==="G"?"#fde68a":ti.tipo==="N"?"#bfdbfe":ti.tipo==="SM"?"#f1f5f9":"#f9fafb";
     var bn=getBaseNote(vY,vM,g);
     var turniLbl=getTurniLabel(vY,vM,g);
-    var tlDiv="<div style=\"font-size:.42rem;text-align:center;line-height:1.1;margin-top:1px;color:"+(ti.turno?"#374151":"#9ca3af")+";font-weight:600\">"+turniLbl+"</div>";
+    var tlDiv="<div style=\"font-size:.55rem;text-align:center;line-height:1.2;margin-top:2px;color:"+(ti.turno?"#1e3a5f":"#6b7280")+";font-weight:800;letter-spacing:.01em\">"+turniLbl+"</div>";
     if(ti.turno){
       var cls=ti.tipo==="N"?"d-N":"d-G";
       var ico=ti.tipo==="N"?"<span style='color:#94a3b8'>&#x1F319;</span>":"<span style='color:#f59e0b'>&#x2600;</span>";
@@ -1868,7 +1868,7 @@ function renderCnt(){
         var isAss=CODICI_ASSENZA.indexOf(code)>=0;
         h+="<div class=\"cnt-row\" style=\"border-left:3px solid "+info.bg+";padding-left:6px"+(isAss?";opacity:.8":"")+"\">"
           +"<span style=\"color:"+info.c+";font-weight:700\">"+code+"</span>"
-          +"<span style=\"color:var(--mu);font-size:.65rem;flex:1;padding-left:4px\">"+info.lbl+(isAss?" &#x26A0;":"")+"</span>"
+          +"<span style=\"color:var(--mu);font-size:.65rem;flex:1;padding-left:4px\">"+info.lbl+"</span>"
           +"<span class=\"cnt-v\">"+cnt+"</span></div>";
       }
     });
