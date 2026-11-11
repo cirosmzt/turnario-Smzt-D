@@ -52,7 +52,7 @@ tbody tr{border-bottom:1px solid #e8ecf2;}
 tbody tr:hover td:not(.td-nome){background:#f8fafc;}
 tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px solid #eaecf0;}
 .td-nome{background:var(--card)!important;text-align:left!important;padding:3px 7px!important;position:sticky;left:0;z-index:2;border-right:2px solid var(--brd);}
-.p-grade{font-size:.57rem;color:var(--mu);}
+.p-grade{font-size:.57rem;color:var(--mu);font-weight:700;}
 .p-nome{font-weight:600;font-size:.72rem;}
 .p-salto{font-size:.57rem;font-weight:700;background:#fecaca;color:#b91c1c;border-radius:3px;padding:1px 4px;display:inline-block;margin-top:1px;}
 .cell-btn{width:28px;height:21px;border-radius:4px;border:none;font-size:.63rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
@@ -222,6 +222,7 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
   <button class="nav-btn" onclick="cambiaMese(1)">&#9654;</button>
   <button class="nav-btn" onclick="cambiaAnno(1)">Anno &#9654;</button>
   <button class="nav-today" onclick="goToday()">Oggi</button>
+  <span style="font-style:italic;font-size:.58rem;color:var(--mu);white-space:nowrap;padding-left:8px;opacity:.75">Turnario V.20 &mdash; Creato da Ciro Accennato</span>
 </div>
 <div class="strip" id="stripInfo">
   <span>Oggi: <strong id="oggiInfo"></strong></span>
