@@ -1793,7 +1793,7 @@ function renderTable(){
   }
   h+="<td class=\"tot-td\"></td></tr>";
   // RIGA FONDO CASSA
-  var fondoDay=getFondoDay(vY,vM);
+  var fondoDay=getEffectiveFondoDay(vY,vM);
   var fondoPagati=getFondoPagati(vY,vM);
   var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(pers.length))||pers.length;
   var _persIdsF=pers.map(function(p){return p.id;});
@@ -2040,6 +2040,42 @@ function saveFondoDayM(y,m,n){
   LS.setItem("vvf_fondo_day_"+y+"_"+m,String(n));
   LS.setItem("vvf_fondo_day_lock_"+y+"_"+m,"1");
 }
+// AUTO-SHIFT FONDO: se il giorno base è passato e non tutti hanno versato,
+// sposta automaticamente. Se locked (manuale) non sposta mai.
+// Tutti versato (verde) → non sposta. Nessuno versato → prossimo giorno alta presenza.
+// Almeno uno versato → rimane su oggi finché non versano tutti.
+function getEffectiveFondoDay(y,m){
+  var locked=LS.getItem("vvf_fondo_day_lock_"+y+"_"+m)==="1";
+  var d=getFondoDay(y,m);
+  if(locked)return d;
+  var pagati=getFondoPagati(y,m);
+  var pers=getPersonale();
+  var target=parseInt(LS.getItem("vvf_fondo_target")||String(pers.length))||pers.length;
+  var _persIds=pers.map(function(p){return p.id;});
+  var nPaid=pagati.filter(function(id){return _persIds.indexOf(id)>=0;}).length;
+  if(nPaid>=target&&target>0)return d; // tutti versato: non spostare
+  var now=new Date();
+  if(now.getFullYear()!==y||now.getMonth()!==m)return d; // altro mese: invariato
+  var todayD=now.getDate();
+  if(todayD<=d)return d; // il giorno non è ancora passato
+  var dim=new Date(y,m+1,0).getDate();
+  if(nPaid===0){
+    // Nessuno ha versato: trova il giorno con più presenti da oggi in poi
+    var bestDay=-1,bestCnt=-1;
+    for(var g=todayD;g<=dim;g++){
+      var cnt=0;
+      for(var pi=0;pi<pers.length;pi++){
+        var sv=LS.getItem("vvf_"+pers[pi].id+"_"+y+"_"+m+"_"+g);
+        if(sv==="P"||sv==="PP")cnt++;
+      }
+      if(cnt>bestCnt){bestCnt=cnt;bestDay=g;}
+    }
+    return bestDay>0?bestDay:Math.min(todayD+1,dim);
+  }else{
+    // Almeno uno ha versato: rimane aperto su oggi finché non versano tutti
+    return Math.min(todayD,dim);
+  }
+}
 function _escH(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 
 var _fondoY,_fondoM;
@@ -2047,11 +2083,13 @@ function openFondo(y,m){
   try{
     _fondoY=y;_fondoM=m;
     var mesi=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
-    var fondoDay=getFondoDay(y,m);
+    var fondoDay=getEffectiveFondoDay(y,m);
+    var fondoDayBase=getFondoDay(y,m);
     var fondoLocked=LS.getItem("vvf_fondo_day_lock_"+y+"_"+m)==="1";
     var fondoTarget=parseInt(LS.getItem("vvf_fondo_target")||String(getPersonale().length))||getPersonale().length;
+    var fondoLbl=fondoLocked?" (fisso)":fondoDay!==fondoDayBase?" (spostato auto)":" (auto)";
     document.getElementById("fondoSub").textContent=
-      mesi[m]+" "+y+" · Giorno raccolta: "+fondoDay+(fondoLocked?" (fisso)":" (auto)")+" · Target: "+fondoTarget+" persone";
+      mesi[m]+" "+y+" · Giorno raccolta: "+fondoDay+fondoLbl+" · Target: "+fondoTarget+" persone";
     renderFondoModal(y,m);
     renderFondoNote(y,m);
     openM("mFondo");
