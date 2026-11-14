@@ -182,6 +182,7 @@ tbody td{padding:2px;text-align:center;vertical-align:middle;border-right:1px so
 <!-- Firebase SDK -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-database-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-auth-compat.min.js"></script>
 </head>
 <body>
 <!-- Schermata di caricamento Firebase -->
@@ -468,7 +469,11 @@ var firebaseConfig={
 firebase.initializeApp(firebaseConfig);
 var DB=firebase.database();
 var fbCache={};
+// Autenticazione anonima — richiesta da regole Firebase "auth != null"
+firebase.auth().signInAnonymously().catch(function(e){console.warn("Auth anonima fallita:",e);});
 // Sostituto drop-in di localStorage — legge da cache locale, scrive su Firebase
+// _adminDirty: traccia se admin ha apportato modifiche dall'ultimo salvataggio
+var _adminDirty=false;
 var LS={
   getItem:function(k){
     var v=fbCache[k];
@@ -479,10 +484,12 @@ var LS={
   setItem:function(k,v){
     fbCache[k]=v;
     DB.ref("store/"+k).set(v);
+    if(sessionStorage.getItem("vvf_adm")==="1")_adminDirty=true;
   },
   removeItem:function(k){
     delete fbCache[k];
     DB.ref("store/"+k).remove();
+    if(sessionStorage.getItem("vvf_adm")==="1")_adminDirty=true;
   }
 };
 // ===== FINE FIREBASE =====
@@ -882,10 +889,25 @@ function doLogin(){
   if(v===getPwd()){sessionStorage.setItem("vvf_adm","1");closeM("mLogin");document.getElementById("loginPwd").value="";e.style.display="none";renderAll();}
   else e.style.display="block";
 }
-function doLogout(){sessionStorage.removeItem("vvf_adm");renderAll();}
+function doLogout(){
+  if(_adminDirty){
+    var salva=window.confirm("Hai apportato modifiche.\nVuoi salvare una copia CSV di backup prima di uscire?");
+    if(salva){esportaCSV();}
+  }
+  _adminDirty=false;
+  sessionStorage.removeItem("vvf_adm");
+  renderAll();
+}
 function toggleAuth(){isAdmin()?doLogout():openLogin();}
 function openLogin(){document.getElementById("loginPwd").value="";document.getElementById("loginErr").style.display="none";openM("mLogin");}
 document.getElementById("loginPwd").addEventListener("keydown",function(e){if(e.key==="Enter")doLogin();});
+// Avvisa se admin chiude la pagina con modifiche non salvate
+window.addEventListener("beforeunload",function(e){
+  if(sessionStorage.getItem("vvf_adm")==="1"&&_adminDirty){
+    e.preventDefault();
+    e.returnValue="Hai modifiche non salvate. Salvare un CSV prima di uscire?";
+  }
+});
 function doChangePwd(){
   var o=document.getElementById("pwdOld").value,n1=document.getElementById("pwdNew1").value,n2=document.getElementById("pwdNew2").value;
   var e=document.getElementById("pwdErr");
